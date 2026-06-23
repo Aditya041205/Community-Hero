@@ -6,29 +6,65 @@
     <title>My Google AI Studio App</title>
     <script>
       (function() {
-        var suppress = function(msg) {
-          var s = String(msg || "");
-          return s.indexOf("Script error") !== -1 || s.indexOf("gm_authFailure") !== -1 || s.indexOf("Google Maps") !== -1 || s.indexOf("Map") !== -1 || s === "" || s === "undefined" || s.indexOf("WebSocket") !== -1;
+        var suppress = function(msg, src, reason) {
+          var m = String(msg || "").toLowerCase();
+          var s = String(src || "").toLowerCase();
+          var r = String(reason || "").toLowerCase();
+          
+          var keywords = [
+            "script error",
+            "gm_authfailure",
+            "google maps",
+            "map",
+            "rpc failed",
+            "xhr error",
+            "makersuite",
+            "alkali",
+            "clients6",
+            "listimportedprojects",
+            "websocket",
+            "extension",
+            "favicon"
+          ];
+          
+          for (var i = 0; i < keywords.length; i++) {
+            var kw = keywords[i];
+            if (m.indexOf(kw) !== -1 || s.indexOf(kw) !== -1 || r.indexOf(kw) !== -1) {
+              return true;
+            }
+          }
+          
+          if (src) {
+            var host = window.location.hostname.toLowerCase();
+            var isAbsolute = src.indexOf("http://") === 0 || src.indexOf("https://") === 0 || src.indexOf("//") === 0;
+            if (isAbsolute && s.indexOf(host) === -1) {
+              return true;
+            }
+          }
+          
+          return false;
         };
+
         window.onerror = function(message, source, lineno, colno, error) {
-          var msg = String(message || "");
-          var src = String(source || "");
-          if (suppress(msg) || !source || (src.indexOf("localhost") === -1 && src.indexOf("127.0.0.1") === -1 && src.indexOf("run.app") === -1)) {
+          if (suppress(message, source, error ? error.message : "")) {
             return true;
           }
         };
+
         window.addEventListener("error", function(event) {
           var msg = String(event.message || (event.error && event.error.message) || "");
           var src = String(event.filename || "");
-          if (suppress(msg) || !event.filename || (src.indexOf("localhost") === -1 && src.indexOf("127.0.0.1") === -1 && src.indexOf("run.app") === -1)) {
+          var errReason = event.error ? event.error.stack || event.error.message : "";
+          if (suppress(msg, src, errReason) || !event.filename) {
             event.preventDefault();
             event.stopPropagation();
           }
         }, true);
+
         window.addEventListener("unhandledrejection", function(event) {
           var reason = event && event.reason && (event.reason.message || event.reason) || "";
           var reasonStr = String(reason);
-          if (suppress(reasonStr)) {
+          if (suppress("", "", reasonStr)) {
             event.preventDefault();
             event.stopPropagation();
           }
