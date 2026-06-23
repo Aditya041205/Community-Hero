@@ -8,22 +8,27 @@
       (function() {
         var suppress = function(msg) {
           var s = String(msg || "");
-          return s.indexOf("Script error") !== -1 || s.indexOf("gm_authFailure") !== -1 || s.indexOf("Google Maps") !== -1 || s.indexOf("Map") !== -1;
+          return s.indexOf("Script error") !== -1 || s.indexOf("gm_authFailure") !== -1 || s.indexOf("Google Maps") !== -1 || s.indexOf("Map") !== -1 || s === "" || s === "undefined" || s.indexOf("WebSocket") !== -1;
         };
         window.onerror = function(message, source, lineno, colno, error) {
-          if (suppress(message) || !source) {
+          var msg = String(message || "");
+          var src = String(source || "");
+          if (suppress(msg) || !source || (src.indexOf("localhost") === -1 && src.indexOf("127.0.0.1") === -1 && src.indexOf("run.app") === -1)) {
             return true;
           }
         };
         window.addEventListener("error", function(event) {
-          if (suppress(event.message) || !event.filename) {
+          var msg = String(event.message || (event.error && event.error.message) || "");
+          var src = String(event.filename || "");
+          if (suppress(msg) || !event.filename || (src.indexOf("localhost") === -1 && src.indexOf("127.0.0.1") === -1 && src.indexOf("run.app") === -1)) {
             event.preventDefault();
             event.stopPropagation();
           }
         }, true);
         window.addEventListener("unhandledrejection", function(event) {
           var reason = event && event.reason && (event.reason.message || event.reason) || "";
-          if (suppress(reason)) {
+          var reasonStr = String(reason);
+          if (suppress(reasonStr)) {
             event.preventDefault();
             event.stopPropagation();
           }
