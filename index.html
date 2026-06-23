@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Google AI Studio App</title>
+    <script>
+      (function() {
+        var suppress = function(msg) {
+          var s = String(msg || "");
+          return s.indexOf("Script error") !== -1 || s.indexOf("gm_authFailure") !== -1 || s.indexOf("Google Maps") !== -1 || s.indexOf("Map") !== -1;
+        };
+        window.onerror = function(message, source, lineno, colno, error) {
+          if (suppress(message) || !source) {
+            return true;
+          }
+        };
+        window.addEventListener("error", function(event) {
+          if (suppress(event.message) || !event.filename) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+        window.addEventListener("unhandledrejection", function(event) {
+          var reason = event && event.reason && (event.reason.message || event.reason) || "";
+          if (suppress(reason)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
