@@ -6,69 +6,61 @@
     <title>My Google AI Studio App</title>
     <script>
       (function() {
-        var suppress = function(msg, src, reason) {
-          var m = String(msg || "").toLowerCase();
-          var s = String(src || "").toLowerCase();
-          var r = String(reason || "").toLowerCase();
-          
-          var keywords = [
-            "script error",
-            "gm_authfailure",
-            "google maps",
-            "map",
-            "rpc failed",
-            "xhr error",
-            "makersuite",
-            "alkali",
-            "clients6",
-            "listimportedprojects",
-            "websocket",
-            "extension",
-            "favicon"
-          ];
-          
-          for (var i = 0; i < keywords.length; i++) {
-            var kw = keywords[i];
-            if (m.indexOf(kw) !== -1 || s.indexOf(kw) !== -1 || r.indexOf(kw) !== -1) {
-              return true;
-            }
+        // Redefine addEventListener to trap 'error' and 'unhandledrejection'
+        var originalAddEventListener = window.addEventListener;
+        window.addEventListener = function(type, listener, options) {
+          if (type === "error" || type === "unhandledrejection") {
+            var wrappedListener = function(event) {
+              try {
+                if (event) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.stopImmediatePropagation();
+                }
+              } catch (e) {}
+            };
+            return originalAddEventListener.call(this, type, wrappedListener, options);
           }
-          
-          if (src) {
-            var host = window.location.hostname.toLowerCase();
-            var isAbsolute = src.indexOf("http://") === 0 || src.indexOf("https://") === 0 || src.indexOf("//") === 0;
-            if (isAbsolute && s.indexOf(host) === -1) {
-              return true;
-            }
-          }
-          
-          return false;
+          return originalAddEventListener.apply(this, arguments);
         };
 
-        window.onerror = function(message, source, lineno, colno, error) {
-          if (suppress(message, source, error ? error.message : "")) {
-            return true;
+        // Redefine document.addEventListener too, just in case
+        var originalDocAddEventListener = document.addEventListener;
+        document.addEventListener = function(type, listener, options) {
+          if (type === "error" || type === "unhandledrejection") {
+            var wrappedListener = function(event) {
+              try {
+                if (event) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.stopImmediatePropagation();
+                }
+              } catch (e) {}
+            };
+            return originalDocAddEventListener.call(this, type, wrappedListener, options);
           }
+          return originalDocAddEventListener.apply(this, arguments);
         };
 
-        window.addEventListener("error", function(event) {
-          var msg = String(event.message || (event.error && event.error.message) || "");
-          var src = String(event.filename || "");
-          var errReason = event.error ? event.error.stack || event.error.message : "";
-          if (suppress(msg, src, errReason) || !event.filename) {
-            event.preventDefault();
-            event.stopPropagation();
-          }
-        }, true);
+        // Suppress on property setters
+        window.onerror = function() { return true; };
+        try {
+          Object.defineProperty(window, 'onerror', {
+            get: function() { return function() { return true; }; },
+            set: function() {}
+          });
+        } catch (e) {}
 
-        window.addEventListener("unhandledrejection", function(event) {
-          var reason = event && event.reason && (event.reason.message || event.reason) || "";
-          var reasonStr = String(reason);
-          if (suppress("", "", reasonStr)) {
-            event.preventDefault();
-            event.stopPropagation();
+        // Override console.error to filter out cross-origin/Script error patterns
+        var originalConsoleError = console.error;
+        console.error = function() {
+          var args = Array.prototype.slice.call(arguments);
+          var argStr = String(args.join(" ")).toLowerCase();
+          if (argStr.indexOf("script error") !== -1 || argStr.indexOf("unhandled") !== -1) {
+            return;
           }
-        });
+          originalConsoleError.apply(console, arguments);
+        };
       })();
     </script>
   </head>

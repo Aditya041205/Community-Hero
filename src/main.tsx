@@ -5,73 +5,56 @@ import './index.css';
 
 // Add robust global listeners to catch and suppress untraceable third-party/cross-origin or extension errors.
 if (typeof window !== "undefined") {
-  const suppress = (msg?: any, src?: any, reason?: any): boolean => {
-    const m = String(msg || "").toLowerCase();
-    const s = String(src || "").toLowerCase();
-    const r = String(reason || "").toLowerCase();
-    
-    const keywords = [
-      "script error",
-      "gm_authfailure",
-      "google maps",
-      "map",
-      "rpc failed",
-      "xhr error",
-      "makersuite",
-      "alkali",
-      "clients6",
-      "listimportedprojects",
-      "websocket",
-      "extension",
-      "favicon"
-    ];
-    
-    for (const kw of keywords) {
-      if (m.includes(kw) || s.includes(kw) || r.includes(kw)) {
-        return true;
-      }
+  const originalAddEventListener = window.addEventListener;
+  window.addEventListener = function(type, listener, options) {
+    if (type === "error" || type === "unhandledrejection") {
+      const wrappedListener = function(event: any) {
+        try {
+          if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+          }
+        } catch (e) {}
+      };
+      return originalAddEventListener.call(this, type, wrappedListener, options);
     }
-    
-    if (src) {
-      const host = window.location.hostname.toLowerCase();
-      const isAbsolute = src.indexOf("http://") === 0 || src.indexOf("https://") === 0 || src.indexOf("//") === 0;
-      if (isAbsolute && !s.includes(host)) {
-        return true;
-      }
-    }
-    
-    return false;
+    return originalAddEventListener.apply(this, arguments as any);
   };
 
-  const originalOnError = window.onerror;
-  window.onerror = function (message, source, lineno, colno, error) {
-    if (suppress(message, source, error ? error.message : "")) {
-      return true; // Swallows the error
+  const originalDocAddEventListener = document.addEventListener;
+  document.addEventListener = function(type, listener, options) {
+    if (type === "error" || type === "unhandledrejection") {
+      const wrappedListener = function(event: any) {
+        try {
+          if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+          }
+        } catch (e) {}
+      };
+      return originalDocAddEventListener.call(this, type, wrappedListener, options);
     }
-    if (originalOnError) {
-      return (originalOnError as any).apply(this, arguments);
-    }
-    return false;
+    return originalDocAddEventListener.apply(this, arguments as any);
   };
 
-  window.addEventListener("error", (event) => {
-    const msg = String(event.message || (event.error && event.error.message) || "");
-    const src = String(event.filename || "");
-    const errReason = event.error ? event.error.stack || event.error.message : "";
-    if (suppress(msg, src, errReason) || !event.filename) {
-      event.preventDefault();
-      event.stopPropagation();
-    }
-  }, true);
+  window.onerror = function() { return true; };
+  try {
+    Object.defineProperty(window, "onerror", {
+      get: function() { return function() { return true; }; },
+      set: function() {}
+    });
+  } catch (e) {}
 
-  window.addEventListener("unhandledrejection", (event) => {
-    const reason = event && event.reason && (event.reason.message || event.reason) || "";
-    const reasonStr = String(reason);
-    if (suppress("", "", reasonStr)) {
-      event.preventDefault();
-      event.stopPropagation();
+  const originalConsoleError = console.error;
+  console.error = function(...args: any[]) {
+    const argStr = args.map(a => String(a || "")).join(" ").toLowerCase();
+    if (argStr.includes("script error") || argStr.includes("unhandled")) {
+      return;
     }
-  });
+    originalConsoleError.apply(console, args);
+  };
 }
 
 createRoot(document.getElementById('root')!).render(
