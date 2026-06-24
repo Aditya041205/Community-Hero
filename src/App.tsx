@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen 
+  ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen, LogOut, ShieldCheck
 } from "lucide-react";
 
 import InteractiveMap from "./components/InteractiveMap";
@@ -11,14 +11,19 @@ import DashboardAnalytics from "./components/DashboardAnalytics";
 import AuthorityPanel from "./components/AuthorityPanel";
 import LeaderboardGamification from "./components/LeaderboardGamification";
 import PresentationDeck from "./components/PresentationDeck";
+import AdminPanel from "./components/AdminPanel";
+import { useAuth } from "./components/AuthContext";
+import AuthPage from "./components/AuthPage";
 import { Issue, LeaderboardEntry, AnalyticsData } from "./types";
 
 export default function App() {
+  const { user, token, logout, loading } = useAuth();
+
   // Main Navigation toggles: "interactive" platform vs "pitch" slides
   const [workspaceMode, setWorkspaceMode] = useState<"interactive" | "pitch">("interactive");
   
-  // App views: "map" (report/gps), "analytics" (transparency), "gamification" (leaderboard), "authority" (dispatcher)
-  const [activeTab, setActiveTab] = useState<"map" | "analytics" | "gamification" | "authority">("map");
+  // App views: "map" (report/gps), "analytics" (transparency), "gamification" (leaderboard), "authority" (dispatcher), "admin"
+  const [activeTab, setActiveTab] = useState<"map" | "analytics" | "gamification" | "authority" | "admin">("map");
 
   // Shared reactive States
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -29,6 +34,13 @@ export default function App() {
   
   // Custom changeable user profile session
   const [currentUsername, setCurrentUsername] = useState("Aditya Sharma");
+
+  // Synchronize current username when user signs in
+  useEffect(() => {
+    if (user) {
+      setCurrentUsername(user.name);
+    }
+  }, [user]);
 
   // Fetch all server data on mount
   const fetchAllData = async () => {
@@ -113,6 +125,20 @@ export default function App() {
 
   const selectedIssue = issues.find(i => i.id === selectedIssueId);
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-emerald-500/10 pointer-events-none z-0"></div>
+        <div className="flex flex-col items-center space-y-4 z-10">
+          <div className="p-3.5 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl shadow-lg shadow-indigo-500/20 text-white animate-bounce">
+            <Zap size={32} />
+          </div>
+          <div className="text-sm font-bold text-slate-300 tracking-wider uppercase animate-pulse">Securing Community Platform...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0f172a] text-slate-200 font-sans selection:bg-indigo-500 selection:text-white pb-10 relative overflow-x-hidden">
       
@@ -140,24 +166,37 @@ export default function App() {
             </div>
           </div>
 
-          {/* Interactive Platform Workspace vs Presentation Slide Deck Toggle */}
-          <div className="flex items-center space-x-1.5 bg-white/5 backdrop-blur-md p-1 rounded-xl border border-white/10 self-start md:self-auto z-10">
-            <button
-              onClick={() => setWorkspaceMode("interactive")}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer ${workspaceMode === 'interactive' ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-md shadow-indigo-500/15 text-white border border-white/10' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
-            >
-              <Layers size={13} />
-              <span>📱 Live Interactive App</span>
-            </button>
-            <button
-              onClick={() => {
-                setWorkspaceMode("pitch");
-              }}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer ${workspaceMode === 'pitch' ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-md shadow-indigo-500/15 text-white border border-white/10' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
-            >
-              <BookOpen size={13} />
-              <span>📊 Slide Pitch Deck</span>
-            </button>
+          {/* Interactive Platform Workspace vs Presentation Slide Deck Toggle & Logout */}
+          <div className="flex items-center space-x-3 self-start md:self-auto z-10">
+            <div className="flex items-center space-x-1.5 bg-white/5 backdrop-blur-md p-1 rounded-xl border border-white/10">
+              <button
+                onClick={() => setWorkspaceMode("interactive")}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer ${workspaceMode === 'interactive' ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-md shadow-indigo-500/15 text-white border border-white/10' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+              >
+                <Layers size={13} />
+                <span>📱 Live Interactive App</span>
+              </button>
+              <button
+                onClick={() => {
+                  setWorkspaceMode("pitch");
+                }}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition cursor-pointer ${workspaceMode === 'pitch' ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-md shadow-indigo-500/15 text-white border border-white/10' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+              >
+                <BookOpen size={13} />
+                <span>📊 Slide Pitch Deck</span>
+              </button>
+            </div>
+
+            {user && (
+              <button
+                onClick={logout}
+                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/30 rounded-xl text-xs font-semibold text-rose-400 flex items-center space-x-1.5 transition cursor-pointer"
+                title="Secure Logout"
+              >
+                <LogOut size={13} />
+                <span>Sign Out</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -177,6 +216,16 @@ export default function App() {
             >
               <PresentationDeck />
             </motion.div>
+          ) : !user ? (
+            <motion.div
+              key="auth-gate"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="max-w-md mx-auto"
+            >
+              <AuthPage />
+            </motion.div>
           ) : (
             /* Main Live Application Segment */
             <motion.div
@@ -195,12 +244,19 @@ export default function App() {
                     {currentUsername.charAt(0)}
                   </div>
                   <div>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2.5">
                        <span className="font-bold text-white text-sm">{currentUsername}</span>
+                       <span className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider ${
+                         user.role === 'admin' ? 'bg-rose-500/10 border border-rose-500/30 text-rose-450' :
+                         user.role === 'authority' ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-450' :
+                         'bg-indigo-500/10 border border-indigo-500/30 text-indigo-455'
+                       }`}>
+                         {user.role}
+                       </span>
                     </div>
                     <div className="flex items-center space-x-1.5 text-slate-400 text-[10px] font-medium tracking-wide">
                       <Award size={12} className="text-indigo-400" />
-                      <span>OFFICER RANK LEVEL {Math.max(1, Math.floor((leaderboard.find(u => u.name === currentUsername)?.points || 100) / 300))}</span>
+                      <span>{user.badge || "City Architect"} • {user.points || 0} Points</span>
                     </div>
                   </div>
                 </div>
@@ -225,12 +281,26 @@ export default function App() {
                   >
                     🏆 Citizens Gamification
                   </button>
-                  <button
-                    onClick={() => setActiveTab("authority")}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${activeTab === 'authority' ? 'bg-white/10 border border-white/20 text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
-                  >
-                    🛡️ City Authority Panel (Dispatcher ({issues.filter(i => i.status !== "Resolved" && i.status !== "Closed").length}))
-                  </button>
+
+                  {/* Authority-only panel */}
+                  {(user.role === "authority" || user.role === "admin") && (
+                    <button
+                      onClick={() => setActiveTab("authority")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${activeTab === 'authority' ? 'bg-white/10 border border-white/20 text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                    >
+                      🛡️ City Authority Panel ({issues.filter(i => i.status !== "Resolved" && i.status !== "Closed").length})
+                    </button>
+                  )}
+
+                  {/* Admin-only root control panel */}
+                  {user.role === "admin" && (
+                    <button
+                      onClick={() => setActiveTab("admin")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${activeTab === 'admin' ? 'bg-white/10 border border-white/20 text-white font-bold' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}
+                    >
+                      🔑 Root Admin Portal
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -361,7 +431,7 @@ export default function App() {
                   </div>
                 )}
 
-                {activeTab === "authority" && (
+                {activeTab === "authority" && (user?.role === "authority" || user?.role === "admin") && (
                   <div className="max-w-5xl mx-auto">
                     <AuthorityPanel
                       issues={issues}
@@ -369,6 +439,12 @@ export default function App() {
                       onSelectIssueId={setSelectedIssueId}
                       onUpdateIssueStatus={handleUpdateStatus}
                     />
+                  </div>
+                )}
+
+                {activeTab === "admin" && user?.role === "admin" && (
+                  <div className="max-w-6xl mx-auto">
+                    <AdminPanel />
                   </div>
                 )}
               </div>

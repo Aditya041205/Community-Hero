@@ -59,3 +59,24 @@ export interface AnalyticsData {
   predictiveForecast: string;
   communityEngagementScore: number;
 }
+
+export type UserRole = "citizen" | "authority" | "admin";
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  points: number;
+  badge: string;
+  reputation: number;
+  avatarUrl?: string;
+  joinedAt: string;
+}
+
+export interface AuthState {
+  user: UserProfile | null;
+  token: string | null;
+  loading: boolean;
+  error: string | null;
+}

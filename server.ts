@@ -3,6 +3,8 @@ import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
 
 dotenv.config();
 
@@ -25,6 +27,87 @@ function getGemini(): GoogleGenAI {
   }
   return aiClient;
 }
+
+interface User {
+  id: string;
+  email: string;
+  passwordHash?: string;
+  name: string;
+  role: "citizen" | "authority" | "admin";
+  points: number;
+  badge: string;
+  reputation: number;
+  joinedAt: string;
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || "community_hero_secret_key_123_hackathon";
+
+// Initialize mock user DB with bcrypt hashed passwords
+const users: User[] = [
+  {
+    id: "user-citizen",
+    email: "citizen@communityhero.ai",
+    passwordHash: bcrypt.hashSync("password123", 10),
+    name: "Aditya Sharma",
+    role: "citizen",
+    points: 1540,
+    badge: "City Architect",
+    reputation: 1240,
+    joinedAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString()
+  },
+  {
+    id: "user-authority",
+    email: "officer@communityhero.ai",
+    passwordHash: bcrypt.hashSync("password123", 10),
+    name: "Officer Marcus Vance",
+    role: "authority",
+    points: 1120,
+    badge: "Pothole Patrol",
+    reputation: 1120,
+    joinedAt: new Date(Date.now() - 15 * 24 * 3600000).toISOString()
+  },
+  {
+    id: "user-admin",
+    email: "admin@communityhero.ai",
+    passwordHash: bcrypt.hashSync("password123", 10),
+    name: "Chief Administrator",
+    role: "admin",
+    points: 5000,
+    badge: "City Ruler",
+    reputation: 5000,
+    joinedAt: new Date(Date.now() - 90 * 24 * 3600000).toISOString()
+  }
+];
+
+// Middleware for JWT verification
+const authenticateJWT = (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    const token = authHeader.split(" ")[1];
+    jwt.verify(token, JWT_SECRET, (err: any, decoded: any) => {
+      if (err) {
+        return res.status(403).json({ error: "Invalid or expired token" });
+      }
+      req.user = decoded;
+      next();
+    });
+  } else {
+    res.status(401).json({ error: "Authorization header missing or malformed" });
+  }
+};
+
+// Middleware for Role checking
+const requireRole = (allowedRoles: string[]) => {
+  return (req: any, res: any, next: any) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Access denied: insufficient permissions" });
+    }
+    next();
+  };
+};
 
 const app = express();
 const PORT = 3000;
@@ -221,6 +304,207 @@ let notifications = [
   { id: "n-2", title: "Alley Trash Dump Cleared!", message: "Excellent collaboration! The city cleaned West 4th St Alleyway in less than 24 hours.", timestamp: new Date(Date.now() - 4 * 3600000).toISOString() },
   { id: "n-3", title: "Water Leak Verified!", message: "5 community members confirmed water bubbling near Bryant Park entrance.", timestamp: new Date(Date.now() - 5 * 3600000).toISOString() }
 ];
+
+// ==========================================
+// AUTHENTICATION & AUTHORIZATION APIS
+// ==========================================
+
+// Register
+app.post("/api/auth/register", (req, res) => {
+  const { name, email, password } = req.body;
+  
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+
+  const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (existingUser) {
+    return res.status(400).json({ error: "Email already registered" });
+  }
+
+  const newUser: User = {
+    id: "user-" + Math.random().toString(36).substr(2, 9),
+    email: email.toLowerCase(),
+    passwordHash: bcrypt.hashSync(password, 10),
+    name,
+    role: "citizen", // Default role
+    points: 100, // Starting bonus points!
+    badge: "Civic Novice",
+    reputation: 100,
+    joinedAt: new Date().toISOString()
+  };
+
+  users.push(newUser);
+
+  // Sync to leaderboard too so they show up!
+  leaderboard.push({
+    id: newUser.id,
+    name: newUser.name,
+    points: newUser.points,
+    badge: newUser.badge,
+    issuesReported: 0,
+    issuesResolved: 0
+  });
+
+  const token = jwt.sign(
+    { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role },
+    JWT_SECRET,
+    { expiresIn: "24h" }
+  );
+
+  const { passwordHash, ...userResponse } = newUser;
+  res.status(201).json({ user: userResponse, token });
+});
+
+// Login
+app.post("/api/auth/login", (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
+  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (!user || !user.passwordHash) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  const isPasswordValid = bcrypt.compareSync(password, user.passwordHash);
+  if (!isPasswordValid) {
+    return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  const token = jwt.sign(
+    { id: user.id, email: user.email, name: user.name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "24h" }
+  );
+
+  const { passwordHash, ...userResponse } = user;
+  res.json({ user: userResponse, token });
+});
+
+// Google OAuth Simulation
+app.post("/api/auth/google", (req, res) => {
+  const { email, name, googleId, avatarUrl } = req.body;
+
+  if (!email || !name) {
+    return res.status(400).json({ error: "Google profile email and name are required" });
+  }
+
+  let user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  
+  if (!user) {
+    // Create new google user
+    user = {
+      id: "user-g-" + Math.random().toString(36).substr(2, 9),
+      email: email.toLowerCase(),
+      name,
+      role: "citizen",
+      points: 100,
+      badge: "Civic Novice",
+      reputation: 100,
+      joinedAt: new Date().toISOString()
+    };
+    users.push(user);
+
+    // Sync to leaderboard
+    leaderboard.push({
+      id: user.id,
+      name: user.name,
+      points: user.points,
+      badge: user.badge,
+      issuesReported: 0,
+      issuesResolved: 0
+    });
+  }
+
+  const token = jwt.sign(
+    { id: user.id, email: user.email, name: user.name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "24h" }
+  );
+
+  const { passwordHash, ...userResponse } = user;
+  res.json({ user: userResponse, token });
+});
+
+// Forgot Password
+app.post("/api/auth/forgot-password", (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (!user) {
+    // Return standard success to avoid email enumeration
+    return res.json({ message: "If that email exists in our system, we have sent a password reset link to it." });
+  }
+
+  // Generate a mock reset token
+  const resetToken = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "1h" });
+  const resetLink = `/reset-password?token=${resetToken}`;
+
+  // Log in server console for easy retrieval in hackathon environment!
+  console.log(`🔑 PASSWORD RESET REQUEST for ${email}: Link is ${resetLink}`);
+
+  res.json({ 
+    message: "If that email exists in our system, we have sent a password reset link to it.",
+    demoResetLink: resetLink // Return for easier hackathon testing/sandbox environment
+  });
+});
+
+// Get profile (me)
+app.get("/api/auth/me", authenticateJWT, (req: any, res) => {
+  const user = users.find(u => u.id === req.user.id);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  const { passwordHash, ...userResponse } = user;
+  res.json(userResponse);
+});
+
+// Admin User Management routes
+
+// Get all users (Admin only)
+app.get("/api/admin/users", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const usersResponse = users.map(({ passwordHash, ...user }) => user);
+  res.json(usersResponse);
+});
+
+// Update user role (Admin only)
+app.post("/api/admin/users/:id/role", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const { id } = req.params;
+  const { role } = req.body;
+
+  if (!role || !["citizen", "authority", "admin"].includes(role)) {
+    return res.status(400).json({ error: "Invalid role specified" });
+  }
+
+  const user = users.find(u => u.id === id);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  user.role = role;
+  const { passwordHash, ...userResponse } = user;
+  res.json(userResponse);
+});
+
+// Delete user (Admin only)
+app.delete("/api/admin/users/:id", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const { id } = req.params;
+  const userIndex = users.findIndex(u => u.id === id);
+
+  if (userIndex === -1) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  users.splice(userIndex, 1);
+  res.json({ success: true, message: "User deleted successfully" });
+});
 
 // 1. API: Get all issues
 app.get("/api/issues", (req, res) => {
