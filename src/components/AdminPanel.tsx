@@ -37,6 +37,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
   const [success, setSuccess] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [adminTab, setAdminTab] = useState<"directory" | "authorities" | "complaints" | "settings">("directory");
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // Add/Edit Authority Modal state
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -140,10 +141,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
 
   const handleDeleteUser = async (userId: string) => {
     if (userId === currentUser?.id) {
-      alert("Self-deletion is blocked for administrator security.");
-      return;
-    }
-    if (!confirm("Are you absolutely sure you want to delete this user from the system?")) {
+      setError("Self-deletion is blocked for administrator security.");
+      setTimeout(() => setError(null), 5000);
       return;
     }
 
@@ -160,6 +159,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
       if (res.ok) {
         setUsers(prev => prev.filter(u => u.id !== userId));
         setSuccess("User successfully removed from system directory.");
+        setTimeout(() => setSuccess(null), 5000);
       } else {
         const errData = await res.json();
         setError(errData.error || "Failed to delete user.");
@@ -428,29 +428,50 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                         <td className="py-3 text-right pr-2">
                           <div className="flex items-center justify-end space-x-1.5">
                             {u.id !== currentUser?.id && (
-                              <>
-                                <button
-                                  onClick={() => handleBlockToggle(u.id, !!u.isBlocked)}
-                                  disabled={updatingId === u.id || u.role === "admin"}
-                                  className={`p-1.5 border rounded-lg transition cursor-pointer disabled:opacity-30 ${
-                                    u.isBlocked 
-                                      ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-450 hover:bg-emerald-500/20" 
-                                      : "bg-red-500/10 border-red-500/25 text-red-450 hover:bg-red-500/20"
-                                  }`}
-                                  title={u.isBlocked ? "Unblock Account" : "Suspend/Block Account"}
-                                >
-                                  {u.isBlocked ? <Unlock size={12} /> : <Ban size={12} />}
-                                </button>
-                                
-                                <button
-                                  onClick={() => handleDeleteUser(u.id)}
-                                  disabled={updatingId === u.id}
-                                  className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition cursor-pointer"
-                                  title="Revoke & Delete Profile"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </>
+                              deleteConfirmId === u.id ? (
+                                <div className="flex items-center space-x-1 font-sans text-[10px]">
+                                  <span className="text-red-400 font-bold mr-1">Confirm?</span>
+                                  <button
+                                    onClick={() => {
+                                      setDeleteConfirmId(null);
+                                      handleDeleteUser(u.id);
+                                    }}
+                                    className="px-2 py-1 bg-red-650 hover:bg-red-500 text-white font-bold rounded-md transition cursor-pointer text-[9px]"
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmId(null)}
+                                    className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-md transition cursor-pointer text-[9px]"
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleBlockToggle(u.id, !!u.isBlocked)}
+                                    disabled={updatingId === u.id || u.role === "admin"}
+                                    className={`p-1.5 border rounded-lg transition cursor-pointer disabled:opacity-30 ${
+                                      u.isBlocked 
+                                        ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-450 hover:bg-emerald-500/20" 
+                                        : "bg-red-500/10 border-red-500/25 text-red-450 hover:bg-red-500/20"
+                                    }`}
+                                    title={u.isBlocked ? "Unblock Account" : "Suspend/Block Account"}
+                                  >
+                                    {u.isBlocked ? <Unlock size={12} /> : <Ban size={12} />}
+                                  </button>
+                                  
+                                  <button
+                                    onClick={() => setDeleteConfirmId(u.id)}
+                                    disabled={updatingId === u.id}
+                                    className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition cursor-pointer"
+                                    title="Revoke & Delete Profile"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </>
+                              )
                             )}
                           </div>
                         </td>
@@ -501,21 +522,44 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                             <p className="text-[10px] text-slate-400 font-mono mt-0.5">{auth.email}</p>
                           </div>
                         </div>
-                        <div className="flex space-x-1">
-                          <button
-                            onClick={() => handleOpenEditAuth(auth)}
-                            className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-lg transition cursor-pointer"
-                            title="Edit Official Profile"
-                          >
-                            <Edit size={11} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(auth.id)}
-                            className="p-1.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 text-red-400 rounded-lg transition cursor-pointer"
-                            title="Delete Official"
-                          >
-                            <Trash2 size={11} />
-                          </button>
+                        <div className="flex space-x-1 items-center">
+                          {deleteConfirmId === auth.id ? (
+                            <div className="flex items-center space-x-1 font-sans text-[10px] bg-slate-950/60 p-1 border border-white/10 rounded-xl">
+                              <span className="text-red-400 font-bold mr-1 pl-1">Delete?</span>
+                              <button
+                                onClick={() => {
+                                  setDeleteConfirmId(null);
+                                  handleDeleteUser(auth.id);
+                                }}
+                                className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded transition cursor-pointer text-[9px]"
+                              >
+                                Yes
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="px-2 py-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded transition cursor-pointer text-[9px]"
+                              >
+                                No
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditAuth(auth)}
+                                className="p-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 rounded-lg transition cursor-pointer"
+                                title="Edit Official Profile"
+                              >
+                                <Edit size={11} />
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmId(auth.id)}
+                                className="p-1.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 text-red-400 rounded-lg transition cursor-pointer"
+                                title="Delete Official"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
 
