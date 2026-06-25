@@ -41,15 +41,15 @@ export default function AuthPage() {
     }
 
     try {
-      let success = false;
+      let result;
       if (activeTab === "login") {
-        success = await login(email, password);
+        result = await login(email, password);
       } else {
-        success = await register(name, email, password);
+        result = await register(name, email, password);
       }
       
-      if (!success) {
-        setFormError(authError || "Authentication failed. Check your inputs.");
+      if (!result.success) {
+        setFormError(result.error || "Authentication failed. Check your inputs.");
       }
     } catch (err) {
       setFormError("A server communication error occurred.");
@@ -67,9 +67,9 @@ export default function AuthPage() {
       const googleName = "Google Hero Partner";
       const googleId = "google_auth_123456";
       
-      const success = await loginWithGoogle(googleEmail, googleName, googleId);
-      if (!success) {
-        setFormError("Google authentication failed.");
+      const result = await loginWithGoogle(googleEmail, googleName, googleId);
+      if (!result.success) {
+        setFormError(result.error || "Google authentication failed.");
       }
     } catch (err) {
       setFormError("Google sign-in error.");
@@ -101,9 +101,9 @@ export default function AuthPage() {
     else if (role === "admin") targetEmail = "admin@communityhero.ai";
 
     try {
-      const success = await login(targetEmail, "password123");
-      if (!success) {
-        setFormError(`Failed to login as ${role}`);
+      const result = await login(targetEmail, "password123");
+      if (!result.success) {
+        setFormError(result.error || `Failed to login as ${role}`);
       }
     } catch (err) {
       setFormError("Demo login error.");
@@ -128,7 +128,7 @@ export default function AuthPage() {
           <div className="p-3 bg-gradient-to-tr from-indigo-500 to-indigo-700 rounded-2xl shadow-lg text-white mb-3">
             <Zap size={28} className="animate-pulse" />
           </div>
-          <h2 className="text-2xl font-extrabold text-white tracking-tight text-center">Community Hero AI</h2>
+          <h2 className="text-2xl font-extrabold text-white tracking-tight text-center">CivicConnect Ai</h2>
           <p className="text-xs text-slate-400 mt-1 text-center">Join the hyper-local community reporting engine</p>
         </div>
 

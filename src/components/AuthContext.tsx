@@ -2,9 +2,9 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { UserProfile, AuthState } from "../types";
 
 interface AuthContextType extends AuthState {
-  register: (name: string, email: string, password: string) => Promise<boolean>;
-  login: (email: string, password: string) => Promise<boolean>;
-  loginWithGoogle: (email: string, name: string, googleId: string) => Promise<boolean>;
+  register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (email: string, name: string, googleId: string) => Promise<{ success: boolean; error?: string }>;
   forgotPassword: (email: string) => Promise<string>;
   logout: () => void;
 }
@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     verifyToken();
   }, [state.token]);
 
-  const register = async (name: string, email: string, password: string): Promise<boolean> => {
+  const register = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetch("/api/auth/register", {
@@ -81,18 +81,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           loading: false,
           error: null
         });
-        return true;
+        return { success: true };
       } else {
-        setState(prev => ({ ...prev, loading: false, error: data.error || "Registration failed" }));
-        return false;
+        const errorMsg = data.error || "Registration failed";
+        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+        return { success: false, error: errorMsg };
       }
     } catch (err) {
-      setState(prev => ({ ...prev, loading: false, error: "Network connection error" }));
-      return false;
+      const errorMsg = "Network connection error";
+      setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+      return { success: false, error: errorMsg };
     }
   };
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetch("/api/auth/login", {
@@ -111,18 +113,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           loading: false,
           error: null
         });
-        return true;
+        return { success: true };
       } else {
-        setState(prev => ({ ...prev, loading: false, error: data.error || "Login failed" }));
-        return false;
+        const errorMsg = data.error || "Login failed";
+        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+        return { success: false, error: errorMsg };
       }
     } catch (err) {
-      setState(prev => ({ ...prev, loading: false, error: "Network connection error" }));
-      return false;
+      const errorMsg = "Network connection error";
+      setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+      return { success: false, error: errorMsg };
     }
   };
 
-  const loginWithGoogle = async (email: string, name: string, googleId: string): Promise<boolean> => {
+  const loginWithGoogle = async (email: string, name: string, googleId: string): Promise<{ success: boolean; error?: string }> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetch("/api/auth/google", {
@@ -141,14 +145,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           loading: false,
           error: null
         });
-        return true;
+        return { success: true };
       } else {
-        setState(prev => ({ ...prev, loading: false, error: data.error || "Google login failed" }));
-        return false;
+        const errorMsg = data.error || "Google login failed";
+        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+        return { success: false, error: errorMsg };
       }
     } catch (err) {
-      setState(prev => ({ ...prev, loading: false, error: "Network connection error" }));
-      return false;
+      const errorMsg = "Network connection error";
+      setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+      return { success: false, error: errorMsg };
     }
   };
 

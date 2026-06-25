@@ -159,7 +159,7 @@ export default function App() {
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-white font-display tracking-tight">Community Hero AI</h1>
+                <h1 className="text-xl font-bold text-white font-display tracking-tight">CivicConnect Ai</h1>
                 <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">HACKATHON MVP</span>
               </div>
               <p className="text-xs text-slate-450 mt-0.5 font-medium">Auto-detection • Geofence Deduplication • Predictive Municipal Analytics</p>

@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import fs from "fs";
 
 dotenv.config();
 
@@ -42,8 +43,10 @@ interface User {
 
 const JWT_SECRET = process.env.JWT_SECRET || "community_hero_secret_key_123_hackathon";
 
+const USERS_FILE = path.join(process.cwd(), "users.json");
+
 // Initialize mock user DB with bcrypt hashed passwords
-const users: User[] = [
+let users: User[] = [
   {
     id: "user-citizen",
     email: "citizen@communityhero.ai",
@@ -78,6 +81,30 @@ const users: User[] = [
     joinedAt: new Date(Date.now() - 90 * 24 * 3600000).toISOString()
   }
 ];
+
+// Load users from persistent users.json if exists
+try {
+  if (fs.existsSync(USERS_FILE)) {
+    const fileData = fs.readFileSync(USERS_FILE, "utf-8");
+    users = JSON.parse(fileData);
+    console.log(`[AUTH] Successfully loaded ${users.length} users from persistent storage (users.json).`);
+  } else {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+    console.log("[AUTH] Created new users.json persistent storage with default accounts.");
+  }
+} catch (error) {
+  console.error("[AUTH] Failed to initialize users from users.json:", error);
+}
+
+// Save users helper
+function saveUsersToFile() {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+    console.log(`[AUTH-PERSIST] Saved ${users.length} users to users.json successfully.`);
+  } catch (error) {
+    console.error("[AUTH-PERSIST] Failed to write users to users.json:", error);
+  }
+}
 
 // Middleware for JWT verification
 const authenticateJWT = (req: any, res: any, next: any) => {
@@ -289,6 +316,32 @@ let issues: Issue[] = [
   }
 ];
 
+const ISSUES_FILE = path.join(process.cwd(), "issues.json");
+
+// Load issues from persistent issues.json if exists
+try {
+  if (fs.existsSync(ISSUES_FILE)) {
+    const fileData = fs.readFileSync(ISSUES_FILE, "utf-8");
+    issues = JSON.parse(fileData);
+    console.log(`[DATA] Successfully loaded ${issues.length} issues from persistent storage (issues.json).`);
+  } else {
+    fs.writeFileSync(ISSUES_FILE, JSON.stringify(issues, null, 2), "utf-8");
+    console.log("[DATA] Created new issues.json persistent storage with default issues.");
+  }
+} catch (error) {
+  console.error("[DATA] Failed to initialize issues from issues.json:", error);
+}
+
+// Save issues helper
+function saveIssuesToFile() {
+  try {
+    fs.writeFileSync(ISSUES_FILE, JSON.stringify(issues, null, 2), "utf-8");
+    console.log(`[DATA-PERSIST] Saved ${issues.length} issues to issues.json successfully.`);
+  } catch (error) {
+    console.error("[DATA-PERSIST] Failed to write issues to issues.json:", error);
+  }
+}
+
 // Leaderboard Database Mock matching Gamification collections
 let leaderboard = [
   { id: "u-1", name: "Elena Rostova", points: 1540, badge: "City Architect", issuesReported: 18, issuesResolved: 12 },
@@ -297,6 +350,32 @@ let leaderboard = [
   { id: "u-4", name: "Maya Lin", points: 760, badge: "Green Guardian", issuesReported: 8, issuesResolved: 6 },
   { id: "u-5", name: "Sarah Connor", points: 510, badge: "Watchful Neighbor", issuesReported: 5, issuesResolved: 3 }
 ];
+
+const LEADERBOARD_FILE = path.join(process.cwd(), "leaderboard.json");
+
+// Load leaderboard from persistent leaderboard.json if exists
+try {
+  if (fs.existsSync(LEADERBOARD_FILE)) {
+    const fileData = fs.readFileSync(LEADERBOARD_FILE, "utf-8");
+    leaderboard = JSON.parse(fileData);
+    console.log(`[GAMIFICATION] Successfully loaded ${leaderboard.length} leaderboard entries from persistent storage (leaderboard.json).`);
+  } else {
+    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(leaderboard, null, 2), "utf-8");
+    console.log("[GAMIFICATION] Created new leaderboard.json persistent storage with default entries.");
+  }
+} catch (error) {
+  console.error("[GAMIFICATION] Failed to initialize leaderboard from leaderboard.json:", error);
+}
+
+// Save leaderboard helper
+function saveLeaderboardToFile() {
+  try {
+    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(leaderboard, null, 2), "utf-8");
+    console.log(`[GAMIFICATION-PERSIST] Saved ${leaderboard.length} leaderboard entries to leaderboard.json successfully.`);
+  } catch (error) {
+    console.error("[GAMIFICATION-PERSIST] Failed to write leaderboard to leaderboard.json:", error);
+  }
+}
 
 // List of recent system notifications & feed
 let notifications = [
@@ -312,13 +391,29 @@ let notifications = [
 // Register
 app.post("/api/auth/register", (req, res) => {
   const { name, email, password } = req.body;
+  console.log(`[AUTH-REGISTER] Request received for name: "${name}", email: "${email}"`);
   
   if (!name || !email || !password) {
-    return res.status(400).json({ error: "All fields are required" });
+    console.warn("[AUTH-REGISTER] Registration failed: Missing required fields.");
+    return res.status(400).json({ error: "Name, email, and password are required" });
+  }
+
+  // Email validation regex
+  const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+  if (!emailRegex.test(email)) {
+    console.warn(`[AUTH-REGISTER] Registration failed: Invalid email format "${email}"`);
+    return res.status(400).json({ error: "Please enter a valid email address" });
+  }
+
+  // Password validation length
+  if (password.length < 6) {
+    console.warn("[AUTH-REGISTER] Registration failed: Password too short.");
+    return res.status(400).json({ error: "Password must be at least 6 characters long" });
   }
 
   const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
   if (existingUser) {
+    console.warn(`[AUTH-REGISTER] Registration failed: Email "${email}" already registered.`);
     return res.status(400).json({ error: "Email already registered" });
   }
 
@@ -335,6 +430,7 @@ app.post("/api/auth/register", (req, res) => {
   };
 
   users.push(newUser);
+  saveUsersToFile();
 
   // Sync to leaderboard too so they show up!
   leaderboard.push({
@@ -345,6 +441,9 @@ app.post("/api/auth/register", (req, res) => {
     issuesReported: 0,
     issuesResolved: 0
   });
+  saveLeaderboardToFile();
+
+  console.log(`[AUTH-REGISTER] Success: User "${newUser.name}" (ID: ${newUser.id}) successfully created and saved.`);
 
   const token = jwt.sign(
     { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role },
@@ -359,18 +458,27 @@ app.post("/api/auth/register", (req, res) => {
 // Login
 app.post("/api/auth/login", (req, res) => {
   const { email, password } = req.body;
+  console.log(`[AUTH-LOGIN] Attempting login for email: "${email}"`);
 
   if (!email || !password) {
+    console.warn("[AUTH-LOGIN] Failed: Email or password not provided.");
     return res.status(400).json({ error: "Email and password are required" });
   }
 
   const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (!user || !user.passwordHash) {
+  if (!user) {
+    console.warn(`[AUTH-LOGIN] Failed: No user found with email "${email}"`);
     return res.status(401).json({ error: "Invalid email or password" });
+  }
+
+  if (!user.passwordHash) {
+    console.warn(`[AUTH-LOGIN] Failed: User "${email}" was registered via Google OAuth and does not have a direct password set.`);
+    return res.status(401).json({ error: "Please log in using Google for this account" });
   }
 
   const isPasswordValid = bcrypt.compareSync(password, user.passwordHash);
   if (!isPasswordValid) {
+    console.warn(`[AUTH-LOGIN] Failed: Incorrect password for user "${email}"`);
     return res.status(401).json({ error: "Invalid email or password" });
   }
 
@@ -380,6 +488,8 @@ app.post("/api/auth/login", (req, res) => {
     { expiresIn: "24h" }
   );
 
+  console.log(`[AUTH-LOGIN] Success: User "${user.name}" (ID: ${user.id}, Role: ${user.role}) logged in successfully.`);
+
   const { passwordHash, ...userResponse } = user;
   res.json({ user: userResponse, token });
 });
@@ -387,8 +497,10 @@ app.post("/api/auth/login", (req, res) => {
 // Google OAuth Simulation
 app.post("/api/auth/google", (req, res) => {
   const { email, name, googleId, avatarUrl } = req.body;
+  console.log(`[AUTH-GOOGLE] Request for email: "${email}", name: "${name}"`);
 
   if (!email || !name) {
+    console.warn("[AUTH-GOOGLE] Failed: Missing email or name in payload.");
     return res.status(400).json({ error: "Google profile email and name are required" });
   }
 
@@ -407,6 +519,7 @@ app.post("/api/auth/google", (req, res) => {
       joinedAt: new Date().toISOString()
     };
     users.push(user);
+    saveUsersToFile();
 
     // Sync to leaderboard
     leaderboard.push({
@@ -417,6 +530,11 @@ app.post("/api/auth/google", (req, res) => {
       issuesReported: 0,
       issuesResolved: 0
     });
+    saveLeaderboardToFile();
+
+    console.log(`[AUTH-GOOGLE] Created and saved new user account for "${user.name}" (ID: ${user.id}).`);
+  } else {
+    console.log(`[AUTH-GOOGLE] Existing user account found for "${user.name}" (ID: ${user.id}).`);
   }
 
   const token = jwt.sign(
@@ -489,6 +607,7 @@ app.post("/api/admin/users/:id/role", authenticateJWT, requireRole(["admin"]), (
   }
 
   user.role = role;
+  saveUsersToFile();
   const { passwordHash, ...userResponse } = user;
   res.json(userResponse);
 });
@@ -503,6 +622,7 @@ app.delete("/api/admin/users/:id", authenticateJWT, requireRole(["admin"]), (req
   }
 
   users.splice(userIndex, 1);
+  saveUsersToFile();
   res.json({ success: true, message: "User deleted successfully" });
 });
 
@@ -533,6 +653,7 @@ app.post("/api/issues/:id/vote", (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
+  saveIssuesToFile();
   res.json(issue);
 });
 
@@ -567,6 +688,7 @@ app.post("/api/issues/:id/comment", (req, res) => {
     });
   }
 
+  saveIssuesToFile();
   res.json(issue);
 });
 
@@ -603,6 +725,11 @@ app.post("/api/issues/:id/status", (req, res) => {
     message: `Municipal team has updated "${issue.title}" to status ${status}. Team assigned: ${assignedTeam || 'None'}.`,
     timestamp: new Date().toISOString()
   });
+
+  saveIssuesToFile();
+  if (status === "Resolved") {
+    saveLeaderboardToFile();
+  }
 
   res.json(issue);
 });
@@ -841,6 +968,9 @@ app.post("/api/issues/report", async (req, res) => {
       issuesResolved: 0
     });
   }
+
+  saveIssuesToFile();
+  saveLeaderboardToFile();
 
   // Set notification feed
   notifications.unshift({
