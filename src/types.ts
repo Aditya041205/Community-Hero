@@ -40,6 +40,9 @@ export interface Issue {
   recommendation?: string;
   createdAt: string;
   resolvedAt?: string;
+  assignedAuthorityEmail?: string;
+  resolutionNotes?: string;
+  resolutionProofImage?: string;
 }
 
 export interface LeaderboardEntry {
@@ -81,6 +84,7 @@ export interface UserProfile {
   reputation: number;
   avatarUrl?: string;
   joinedAt: string;
+  isBlocked?: boolean;
 }
 
 export interface AuthState {

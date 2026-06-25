@@ -39,6 +39,7 @@ interface User {
   badge: string;
   reputation: number;
   joinedAt: string;
+  isBlocked?: boolean;
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "community_hero_secret_key_123_hackathon";
@@ -186,6 +187,9 @@ interface Issue {
   recommendation?: string;
   createdAt: string;
   resolvedAt?: string;
+  assignedAuthorityEmail?: string;
+  resolutionNotes?: string;
+  resolutionProofImage?: string;
 }
 
 // Pre-populate with beautiful, highly realistic Metro Heights city dataset
@@ -505,6 +509,18 @@ let notifications = [
 // AUTHENTICATION & AUTHORIZATION APIS
 // ==========================================
 
+// Helper to get role and badge by email
+function getRoleAndBadgeByEmail(email: string): { role: "citizen" | "authority" | "admin"; badge: string } {
+  const normEmail = email.toLowerCase().trim();
+  if (normEmail === "adityasharma01021@gmail.com") {
+    return { role: "admin", badge: "City Admin" };
+  } else if (normEmail === "adityaksharma00412@gmail.com") {
+    return { role: "authority", badge: "Chief Dispatcher" };
+  } else {
+    return { role: "citizen", badge: "Civic Novice" };
+  }
+}
+
 // Firebase auth sync endpoint
 app.post("/api/auth/firebase-sync", (req, res) => {
   const { uid, email, name } = req.body;
@@ -515,20 +531,19 @@ app.post("/api/auth/firebase-sync", (req, res) => {
     return res.status(400).json({ error: "Firebase UID and email are required" });
   }
 
+  const { role: assignedRole, badge: assignedBadge } = getRoleAndBadgeByEmail(email);
+
   // Find user by email or by id
   let user = users.find(u => u.email.toLowerCase() === email.toLowerCase() || u.id === uid);
 
+  if (user && user.isBlocked) {
+    console.warn(`[AUTH-FIREBASE-SYNC] Blocked user attempt: ${email}`);
+    return res.status(403).json({ error: "Your account has been blocked by an administrator. Please contact municipal support." });
+  }
+
   if (!user) {
-    // If not found, create new citizen user profile
+    // If not found, create new user profile with deterministic role
     const displayName = name || email.split("@")[0];
-    
-    // Check if we need to promote specific emails to authority/admin for seamless testing
-    let assignedRole: "citizen" | "authority" | "admin" = "citizen";
-    if (email.toLowerCase().includes("admin")) {
-      assignedRole = "admin";
-    } else if (email.toLowerCase().includes("authority") || email.toLowerCase().includes("officer") || email.toLowerCase().includes("city")) {
-      assignedRole = "authority";
-    }
 
     user = {
       id: uid, // Use Firebase UID directly as the persistent user ID
@@ -536,7 +551,7 @@ app.post("/api/auth/firebase-sync", (req, res) => {
       name: displayName,
       role: assignedRole,
       points: 100, // starting bonus
-      badge: assignedRole === "admin" ? "City Admin" : assignedRole === "authority" ? "Chief Dispatcher" : "Civic Novice",
+      badge: assignedBadge,
       reputation: 100,
       joinedAt: new Date().toISOString()
     };
@@ -560,8 +575,16 @@ app.post("/api/auth/firebase-sync", (req, res) => {
 
     console.log(`[AUTH-FIREBASE-SYNC] Created and saved new synchronized profile for user "${user.name}" (ID: ${user.id}, Role: ${user.role}).`);
   } else {
-    // User already exists, update basic profile details if needed but keep ID, role, points intact
+    // User already exists, update role/badge to enforce requirements, and display details
     let updated = false;
+    
+    // Crucial requirement check: Enforce the deterministic role for Aditya's emails in returning users too!
+    if (user.role !== assignedRole) {
+      user.role = assignedRole;
+      user.badge = assignedBadge;
+      updated = true;
+    }
+
     if (name && user.name !== name) {
       user.name = name;
       updated = true;
@@ -575,14 +598,14 @@ app.post("/api/auth/firebase-sync", (req, res) => {
       // sync leaderboard id
       const lEntry = leaderboard.find(l => l.id === oldId);
       if (lEntry) {
-        lEntry.id = uid;
-        saveLeaderboardToFile();
+         lEntry.id = uid;
+         saveLeaderboardToFile();
       }
     }
 
     if (updated) {
       saveUsersToFile();
-      console.log(`[AUTH-FIREBASE-SYNC] Updated profile for existing user "${user.name}" (ID: ${user.id}).`);
+      console.log(`[AUTH-FIREBASE-SYNC] Updated profile for existing user "${user.name}" (ID: ${user.id}, Role: ${user.role}).`);
     } else {
       console.log(`[AUTH-FIREBASE-SYNC] Matched existing user "${user.name}" (ID: ${user.id}, Role: ${user.role}).`);
     }
@@ -837,6 +860,88 @@ app.delete("/api/admin/users/:id", authenticateJWT, requireRole(["admin"]), (req
   res.json({ success: true, message: "User deleted successfully" });
 });
 
+// Block a user (Admin only)
+app.post("/api/admin/users/:id/block", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const { id } = req.params;
+  const user = users.find(u => u.id === id);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  if (user.role === "admin") {
+    return res.status(400).json({ error: "Administrators cannot be blocked" });
+  }
+  user.isBlocked = true;
+  saveUsersToFile();
+  const { passwordHash, ...userResponse } = user;
+  res.json(userResponse);
+});
+
+// Unblock a user (Admin only)
+app.post("/api/admin/users/:id/unblock", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const { id } = req.params;
+  const user = users.find(u => u.id === id);
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+  user.isBlocked = false;
+  saveUsersToFile();
+  const { passwordHash, ...userResponse } = user;
+  res.json(userResponse);
+});
+
+// Add Authority (Admin only)
+app.post("/api/admin/authorities", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const { name, email, badge } = req.body;
+  if (!name || !email) {
+    return res.status(400).json({ error: "Name and email are required" });
+  }
+  // Check if email already exists
+  const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (exists) {
+    return res.status(400).json({ error: "Email is already registered" });
+  }
+
+  const newAuth: User = {
+    id: "auth-" + Math.floor(1000 + Math.random() * 9000),
+    email: email.toLowerCase(),
+    name,
+    role: "authority",
+    points: 1000, // standard officer starting bonus
+    badge: badge || "Chief Dispatcher",
+    reputation: 1000,
+    joinedAt: new Date().toISOString()
+  };
+
+  users.push(newAuth);
+  saveUsersToFile();
+  res.json(newAuth);
+});
+
+// Edit Authority (Admin only)
+app.post("/api/admin/authorities/:id", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const { id } = req.params;
+  const { name, email, badge } = req.body;
+  
+  const user = users.find(u => u.id === id);
+  if (!user) {
+    return res.status(404).json({ error: "Authority not found" });
+  }
+
+  if (name) user.name = name;
+  if (email) {
+    const duplicate = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.id !== id);
+    if (duplicate) {
+      return res.status(400).json({ error: "Email is already in use by another user" });
+    }
+    user.email = email.toLowerCase();
+  }
+  if (badge) user.badge = badge;
+
+  saveUsersToFile();
+  const { passwordHash, ...userResponse } = user;
+  res.json(userResponse);
+});
+
 // 1. API: Get all issues
 app.get("/api/issues", (req, res) => {
   res.json(issues);
@@ -976,6 +1081,53 @@ app.post("/api/issues/:id/status", (req, res) => {
     saveLeaderboardToFile();
   }
 
+  res.json(issue);
+});
+
+// Resolve an issue with notes and proof (Authority/Admin only)
+app.post("/api/issues/:id/resolve", authenticateJWT, requireRole(["authority", "admin"]), (req, res) => {
+  const { id } = req.params;
+  const { resolutionNotes, resolutionProofImage } = req.body;
+  const issue = issues.find(i => i.id === id);
+  if (!issue) {
+    return res.status(404).json({ error: "Civic issue not found" });
+  }
+
+  issue.status = "Resolved";
+  issue.resolvedAt = new Date().toISOString();
+  if (resolutionNotes) {
+    issue.resolutionNotes = resolutionNotes;
+  }
+  if (resolutionProofImage) {
+    issue.resolutionProofImage = resolutionProofImage;
+  }
+
+  // Create timeline event
+  issue.timeline = issue.timeline || [];
+  issue.timeline.push({
+    id: "tl-" + Math.random().toString(36).substr(2, 9),
+    status: "Resolved",
+    title: "Complaint Resolved",
+    description: resolutionNotes || "Municipal authorities successfully resolved this issue and provided certification.",
+    timestamp: new Date().toISOString()
+  });
+
+  // Reward points to the creator!
+  const reporter = leaderboard.find(u => u.name === issue.reporterName);
+  if (reporter) {
+    reporter.points += 150; // 150 Hero points for successfully resolving!
+    reporter.issuesResolved += 1;
+  }
+
+  notifications.unshift({
+    id: "n-" + Math.random().toString(36).substr(2, 9),
+    title: "Complaint Resolved!",
+    message: `Municipal team completed "${issue.title}". Proof of resolution has been logged.`,
+    timestamp: new Date().toISOString()
+  });
+
+  saveIssuesToFile();
+  saveLeaderboardToFile();
   res.json(issue);
 });
 
