@@ -62,12 +62,7 @@ export default function AuthPage() {
     setFormError(null);
     setIsSubmitting(true);
     try {
-      // Simulate OAuth flow by logging in with a default demo Google user
-      const googleEmail = "google.hero@gmail.com";
-      const googleName = "Google Hero Partner";
-      const googleId = "google_auth_123456";
-      
-      const result = await loginWithGoogle(googleEmail, googleName, googleId);
+      const result = await loginWithGoogle();
       if (!result.success) {
         setFormError(result.error || "Google authentication failed.");
       }
@@ -88,27 +83,6 @@ export default function AuthPage() {
       setForgotMessage(message);
     } catch (err) {
       setForgotMessage("Failed to request password reset.");
-    }
-  };
-
-  // Hackathon Demo Shortcut
-  const handleQuickLogin = async (role: "citizen" | "authority" | "admin") => {
-    setFormError(null);
-    setIsSubmitting(true);
-    let targetEmail = "";
-    if (role === "citizen") targetEmail = "citizen@communityhero.ai";
-    else if (role === "authority") targetEmail = "officer@communityhero.ai";
-    else if (role === "admin") targetEmail = "admin@communityhero.ai";
-
-    try {
-      const result = await login(targetEmail, "password123");
-      if (!result.success) {
-        setFormError(result.error || `Failed to login as ${role}`);
-      }
-    } catch (err) {
-      setFormError("Demo login error.");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -274,34 +248,6 @@ export default function AuthPage() {
                 <span>Sign In with Google</span>
               </button>
 
-              {/* Demo Pre-sets for Hackathon Evaluators */}
-              <div className="mt-8 pt-5 border-t border-white/5">
-                <div className="flex items-center space-x-1.5 mb-3 justify-center">
-                  <HelpCircle size={13} className="text-amber-400" />
-                  <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">Demo Quick Access Roles</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => handleQuickLogin("citizen")}
-                    className="py-1.5 px-2 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 text-[10px] font-bold text-indigo-400 rounded-lg text-center transition cursor-pointer"
-                  >
-                    Citizen
-                  </button>
-                  <button
-                    onClick={() => handleQuickLogin("authority")}
-                    className="py-1.5 px-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-[10px] font-bold text-emerald-400 rounded-lg text-center transition cursor-pointer"
-                  >
-                    Authority
-                  </button>
-                  <button
-                    onClick={() => handleQuickLogin("admin")}
-                    className="py-1.5 px-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-[10px] font-bold text-rose-400 rounded-lg text-center transition cursor-pointer"
-                  >
-                    Admin
-                  </button>
-                </div>
-                <p className="text-[9px] text-slate-500 text-center mt-2 font-medium">Click any button above to immediately login with default mock credentials.</p>
-              </div>
             </motion.div>
           ) : (
             <motion.div

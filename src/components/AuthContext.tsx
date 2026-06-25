@@ -1,12 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { UserProfile, AuthState } from "../types";
+import { 
+  auth, 
+  googleProvider, 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signOut,
+  onAuthStateChanged
+} from "../lib/firebase";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 interface AuthContextType extends AuthState {
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: (email: string, name: string, googleId: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   forgotPassword: (email: string) => Promise<string>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,76 +30,112 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     error: null,
   });
 
-  // Verify token on mount or token change
+  // Keep track of mounted status to avoid setting state after unmount
   useEffect(() => {
-    const verifyToken = async () => {
-      const token = localStorage.getItem("ch_token");
-      if (!token) {
-        setState(prev => ({ ...prev, user: null, token: null, loading: false }));
-        return;
-      }
+    let isMounted = true;
 
-      try {
-        const res = await fetch("/api/auth/me", {
-          headers: {
-            "Authorization": `Bearer ${token}`
-          }
-        });
+    // Listen to Firebase auth state changes
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!isMounted) return;
 
-        if (res.ok) {
-          const userData = await res.json();
-          setState({
-            user: userData,
-            token,
-            loading: false,
-            error: null
+      if (firebaseUser) {
+        try {
+          console.log(`[AUTH-CLIENT] Firebase user authenticated: ${firebaseUser.email}`);
+          
+          // Obtain client Firebase ID Token
+          const idToken = await firebaseUser.getIdToken();
+          
+          // Synchronize with our backend to retrieve role & local JWT
+          const syncRes = await fetch("/api/auth/firebase-sync", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+              uid: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Civic Connect User"
+            })
           });
-        } else {
-          // Token expired or invalid
-          localStorage.removeItem("ch_token");
+
+          if (syncRes.ok) {
+            const data = await syncRes.json();
+            
+            // Persist Express JWT token locally
+            localStorage.setItem("ch_token", data.token);
+
+            setState({
+              user: data.user,
+              token: data.token,
+              loading: false,
+              error: null
+            });
+          } else {
+            const errorData = await syncRes.json();
+            console.error("[AUTH-CLIENT] Failed to sync user with backend:", errorData);
+            
+            setState({
+              user: null,
+              token: null,
+              loading: false,
+              error: errorData.error || "Failed to synchronize profile with server."
+            });
+          }
+        } catch (syncErr) {
+          console.error("[AUTH-CLIENT] Network error syncing user:", syncErr);
           setState({
             user: null,
             token: null,
             loading: false,
-            error: "Session expired. Please log in again."
+            error: "Network error during server profile synchronization."
           });
         }
-      } catch (err) {
-        // Network error, keep existing token but stop loading
-        setState(prev => ({ ...prev, loading: false }));
+      } else {
+        console.log("[AUTH-CLIENT] No Firebase user detected. Clearing local session.");
+        localStorage.removeItem("ch_token");
+        setState({
+          user: null,
+          token: null,
+          loading: false,
+          error: null
+        });
       }
-    };
+    });
 
-    verifyToken();
-  }, [state.token]);
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, []);
 
   const register = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password })
+      // 1. Create firebase user credentials
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // 2. Update display name
+      await updateProfile(userCredential.user, {
+        displayName: name
       });
 
-      const data = await res.json();
-
-      if (res.ok) {
-        localStorage.setItem("ch_token", data.token);
-        setState({
-          user: data.user,
-          token: data.token,
-          loading: false,
-          error: null
-        });
-        return { success: true };
-      } else {
-        const errorMsg = data.error || "Registration failed";
-        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
-        return { success: false, error: errorMsg };
+      // State and local sync will be automatically triggered by onAuthStateChanged!
+      return { success: true };
+    } catch (err: any) {
+      console.error("[AUTH-CLIENT] Firebase registration failed:", err);
+      let errorMsg = "Registration failed. Please try again.";
+      if (err.code === "auth/email-already-in-use") {
+        errorMsg = "This email is already in use.";
+      } else if (err.code === "auth/invalid-email") {
+        errorMsg = "Please enter a valid email address.";
+      } else if (err.code === "auth/weak-password") {
+        errorMsg = "Password must be at least 6 characters long.";
+      } else if (err.code === "auth/operation-not-allowed") {
+        errorMsg = "Email/Password authentication is not enabled in your Firebase Console. Please go to your Firebase Console, click 'Authentication' -> 'Sign-in method', and enable 'Email/Password'.";
+      } else if (err.message) {
+        errorMsg = err.message;
       }
-    } catch (err) {
-      const errorMsg = "Network connection error";
       setState(prev => ({ ...prev, loading: false, error: errorMsg }));
       return { success: false, error: errorMsg };
     }
@@ -97,62 +144,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        localStorage.setItem("ch_token", data.token);
-        setState({
-          user: data.user,
-          token: data.token,
-          loading: false,
-          error: null
-        });
-        return { success: true };
-      } else {
-        const errorMsg = data.error || "Login failed";
-        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
-        return { success: false, error: errorMsg };
+      // Sign in using email/password
+      await signInWithEmailAndPassword(auth, email, password);
+      // State and local sync will be automatically triggered by onAuthStateChanged!
+      return { success: true };
+    } catch (err: any) {
+      console.error("[AUTH-CLIENT] Firebase email login failed:", err);
+      let errorMsg = "Invalid email or password.";
+      if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+        errorMsg = "Invalid email or password.";
+      } else if (err.code === "auth/too-many-requests") {
+        errorMsg = "Access to this account has been temporarily disabled due to many failed login attempts. Please try again later.";
+      } else if (err.code === "auth/operation-not-allowed") {
+        errorMsg = "Email/Password authentication is not enabled in your Firebase Console. Please go to your Firebase Console, click 'Authentication' -> 'Sign-in method', and enable 'Email/Password'.";
+      } else if (err.message) {
+        errorMsg = err.message;
       }
-    } catch (err) {
-      const errorMsg = "Network connection error";
       setState(prev => ({ ...prev, loading: false, error: errorMsg }));
       return { success: false, error: errorMsg };
     }
   };
 
-  const loginWithGoogle = async (email: string, name: string, googleId: string): Promise<{ success: boolean; error?: string }> => {
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const res = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name, googleId })
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        localStorage.setItem("ch_token", data.token);
-        setState({
-          user: data.user,
-          token: data.token,
-          loading: false,
-          error: null
-        });
-        return { success: true };
-      } else {
-        const errorMsg = data.error || "Google login failed";
-        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
-        return { success: false, error: errorMsg };
+      // Launch standard Google OAuth interactive Sign-In popup
+      await signInWithPopup(auth, googleProvider);
+      // State and local sync will be automatically triggered by onAuthStateChanged!
+      return { success: true };
+    } catch (err: any) {
+      console.error("[AUTH-CLIENT] Firebase Google Sign-In failed:", err);
+      let errorMsg = "Google authentication failed. Please try again.";
+      if (err.code === "auth/popup-closed-by-user") {
+        errorMsg = "Sign-in popup closed before completion.";
+      } else if (err.code === "auth/blocked-by-popup-resolver") {
+        errorMsg = "Sign-in popup blocked by your browser. Please allow popups.";
+      } else if (err.message) {
+        errorMsg = err.message;
       }
-    } catch (err) {
-      const errorMsg = "Network connection error";
       setState(prev => ({ ...prev, loading: false, error: errorMsg }));
       return { success: false, error: errorMsg };
     }
@@ -160,26 +189,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const forgotPassword = async (email: string): Promise<string> => {
     try {
-      const res = await fetch("/api/auth/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
-      });
-      const data = await res.json();
-      return data.message || "Reset link generated.";
-    } catch (err) {
-      return "Unable to process password reset. Please try again.";
+      await sendPasswordResetEmail(auth, email);
+      return "A password reset email has been sent. Please check your inbox.";
+    } catch (err: any) {
+      console.error("[AUTH-CLIENT] Forgot password failed:", err);
+      if (err.code === "auth/user-not-found") {
+        return "No account exists with this email address.";
+      } else if (err.code === "auth/invalid-email") {
+        return "Please enter a valid email address.";
+      }
+      return "Unable to send password reset email. Please try again.";
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("ch_token");
-    setState({
-      user: null,
-      token: null,
-      loading: false,
-      error: null
-    });
+  const logout = async (): Promise<void> => {
+    setState(prev => ({ ...prev, loading: true }));
+    try {
+      await signOut(auth);
+      // State and local sync will be automatically triggered by onAuthStateChanged!
+    } catch (err) {
+      console.error("[AUTH-CLIENT] Sign out failed:", err);
+      // Fallback manual state clear
+      localStorage.removeItem("ch_token");
+      setState({
+        user: null,
+        token: null,
+        loading: false,
+        error: null
+      });
+    }
   };
 
   return (

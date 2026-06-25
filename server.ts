@@ -388,6 +388,100 @@ let notifications = [
 // AUTHENTICATION & AUTHORIZATION APIS
 // ==========================================
 
+// Firebase auth sync endpoint
+app.post("/api/auth/firebase-sync", (req, res) => {
+  const { uid, email, name } = req.body;
+  console.log(`[AUTH-FIREBASE-SYNC] Sync request received for UID: "${uid}", email: "${email}", name: "${name}"`);
+
+  if (!uid || !email) {
+    console.warn("[AUTH-FIREBASE-SYNC] Failed: Missing uid or email.");
+    return res.status(400).json({ error: "Firebase UID and email are required" });
+  }
+
+  // Find user by email or by id
+  let user = users.find(u => u.email.toLowerCase() === email.toLowerCase() || u.id === uid);
+
+  if (!user) {
+    // If not found, create new citizen user profile
+    const displayName = name || email.split("@")[0];
+    
+    // Check if we need to promote specific emails to authority/admin for seamless testing
+    let assignedRole: "citizen" | "authority" | "admin" = "citizen";
+    if (email.toLowerCase().includes("admin")) {
+      assignedRole = "admin";
+    } else if (email.toLowerCase().includes("authority") || email.toLowerCase().includes("officer") || email.toLowerCase().includes("city")) {
+      assignedRole = "authority";
+    }
+
+    user = {
+      id: uid, // Use Firebase UID directly as the persistent user ID
+      email: email.toLowerCase(),
+      name: displayName,
+      role: assignedRole,
+      points: 100, // starting bonus
+      badge: assignedRole === "admin" ? "City Admin" : assignedRole === "authority" ? "Chief Dispatcher" : "Civic Novice",
+      reputation: 100,
+      joinedAt: new Date().toISOString()
+    };
+
+    users.push(user);
+    saveUsersToFile();
+
+    // Add to leaderboard if citizen/authority
+    const existsOnLeaderboard = leaderboard.some(l => l.id === user!.id);
+    if (!existsOnLeaderboard) {
+      leaderboard.push({
+        id: user.id,
+        name: user.name,
+        points: user.points,
+        badge: user.badge,
+        issuesReported: 0,
+        issuesResolved: 0
+      });
+      saveLeaderboardToFile();
+    }
+
+    console.log(`[AUTH-FIREBASE-SYNC] Created and saved new synchronized profile for user "${user.name}" (ID: ${user.id}, Role: ${user.role}).`);
+  } else {
+    // User already exists, update basic profile details if needed but keep ID, role, points intact
+    let updated = false;
+    if (name && user.name !== name) {
+      user.name = name;
+      updated = true;
+    }
+    // ensure the id matches uid for easy routing consistency
+    if (user.id !== uid) {
+      const oldId = user.id;
+      user.id = uid;
+      updated = true;
+
+      // sync leaderboard id
+      const lEntry = leaderboard.find(l => l.id === oldId);
+      if (lEntry) {
+        lEntry.id = uid;
+        saveLeaderboardToFile();
+      }
+    }
+
+    if (updated) {
+      saveUsersToFile();
+      console.log(`[AUTH-FIREBASE-SYNC] Updated profile for existing user "${user.name}" (ID: ${user.id}).`);
+    } else {
+      console.log(`[AUTH-FIREBASE-SYNC] Matched existing user "${user.name}" (ID: ${user.id}, Role: ${user.role}).`);
+    }
+  }
+
+  // Create local Express session JWT token
+  const token = jwt.sign(
+    { id: user.id, email: user.email, name: user.name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: "24h" }
+  );
+
+  const { passwordHash, ...userResponse } = user;
+  res.json({ user: userResponse, token });
+});
+
 // Register
 app.post("/api/auth/register", (req, res) => {
   const { name, email, password } = req.body;
