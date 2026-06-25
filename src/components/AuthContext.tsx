@@ -34,6 +34,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let isMounted = true;
 
+    // Log configuration details for diagnostic auditing
+    console.log("[AUTH-INIT] Diagnostics: Checking Firebase Auth configuration...");
+    if (auth && auth.app) {
+      console.log("[AUTH-INIT] App Name:", auth.app.name);
+      console.log("[AUTH-INIT] Project ID:", auth.app.options.projectId);
+      console.log("[AUTH-INIT] API Key presence:", !!auth.app.options.apiKey);
+      console.log("[AUTH-INIT] Auth Domain:", auth.app.options.authDomain);
+    } else {
+      console.error("[AUTH-INIT] Firebase auth object is uninitialized!");
+    }
+
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!isMounted) return;
@@ -176,9 +187,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error("[AUTH-CLIENT] Firebase Google Sign-In failed:", err);
       let errorMsg = "Google authentication failed. Please try again.";
       if (err.code === "auth/popup-closed-by-user") {
-        errorMsg = "Sign-in popup closed before completion.";
+        errorMsg = "The sign-in window was closed before finishing authentication. Please click 'Continue with Google' to try again.";
       } else if (err.code === "auth/blocked-by-popup-resolver") {
         errorMsg = "Sign-in popup blocked by your browser. Please allow popups.";
+      } else if (err.code === "auth/operation-not-allowed") {
+        errorMsg = "Google Sign-In is not enabled in your Firebase Console. Please go to your Firebase Console, click 'Authentication' -> 'Sign-in method', add the 'Google' provider, and enable it.";
       } else if (err.message) {
         errorMsg = err.message;
       }
