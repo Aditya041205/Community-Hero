@@ -12,6 +12,7 @@ import AuthorityPanel from "./components/AuthorityPanel";
 import LeaderboardGamification from "./components/LeaderboardGamification";
 import PresentationDeck from "./components/PresentationDeck";
 import AdminPanel from "./components/AdminPanel";
+import IssueTimeline from "./components/IssueTimeline";
 import { useAuth } from "./components/AuthContext";
 import AuthPage from "./components/AuthPage";
 import { Issue, LeaderboardEntry, AnalyticsData } from "./types";
@@ -30,7 +31,13 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<"overview" | "timeline" | "comments">("overview");
   const [clickedCoords, setClickedCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Reset tab when selection changes
+  useEffect(() => {
+    setInspectorTab("overview");
+  }, [selectedIssueId]);
   
   // Custom changeable user profile session
   const [currentUsername, setCurrentUsername] = useState("Aditya Sharma");
@@ -325,12 +332,12 @@ export default function App() {
                           animate={{ opacity: 1, y: 0 }}
                           className="bg-white/5 backdrop-blur-xl border border-white/10 p-5 rounded-3xl space-y-3 shadow-lg relative z-10"
                         >
-                          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/10 pb-3 gap-3">
                             <div>
                               <span className="text-[10px] uppercase font-mono text-indigo-400 tracking-wider font-bold">MUTABLE RECORD INSPECT</span>
                               <h4 className="text-white font-bold text-sm leading-tight mt-0.5">{selectedIssue.title}</h4>
                             </div>
-                            <div className="flex items-center space-x-1.5">
+                            <div className="flex items-center space-x-1.5 flex-wrap gap-y-1.5">
                               <span className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider ${selectedIssue.status === 'Resolved' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/5 text-slate-400 border border-white/10'}`}>
                                 {selectedIssue.status}
                               </span>
@@ -342,63 +349,141 @@ export default function App() {
                               </button>
                             </div>
                           </div>
-                          
-                          <p className="text-xs text-slate-350 leading-relaxed">{selectedIssue.description}</p>
-                          
-                          {/* AI recommendations panel inner */}
-                          {selectedIssue.recommendation && (
-                            <div className="bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-md rounded-2xl p-4 text-[11px] leading-relaxed flex items-start space-x-2 text-indigo-200">
-                              <span className="font-bold flex-shrink-0 text-amber-300 font-mono text-[9px] bg-amber-500/10 px-1.5 py-0.5 border border-amber-500/35 rounded uppercase tracking-wider h-max">AI ACTION TIPS</span>
-                              <p>{selectedIssue.recommendation}</p>
-                            </div>
-                          )}
 
-                          {/* Quick Comments list mock integration matching Verification requirements */}
-                          <div className="space-y-2 pt-2 border-t border-white/10 text-xs">
-                            <span className="text-[10px] block font-bold text-slate-400 uppercase tracking-widest">Verification Thread & Community Comments ({selectedIssue.comments.length})</span>
-                            <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
-                              {selectedIssue.comments.map(c => (
-                                <div key={c.id} className="p-3 bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5">
-                                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                                    <span className="font-bold text-slate-300">{c.author}</span>
-                                    <span>{new Date(c.createdAt).toLocaleDateString()}</span>
-                                  </div>
-                                  <p className="text-slate-355 mt-1 leading-relaxed text-[11px]">{c.text}</p>
-                                </div>
-                              ))}
-                            </div>
-                            {/* Simple comment poster */}
-                            <form
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                const form = e.currentTarget;
-                                const textInput = form.elements.namedItem("commentText") as HTMLInputElement;
-                                if (textInput.value.trim()) {
-                                  fetch(`/api/issues/${selectedIssue.id}/comment`, {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ author: currentUsername, text: textInput.value })
-                                  }).then(res => res.json()).then(updated => {
-                                    setIssues(prev => prev.map(i => i.id === selectedIssue.id ? updated : i));
-                                    textInput.value = "";
-                                  });
-                                }
-                              }}
-                              className="mt-2 flex items-center space-x-2"
+                          {/* Inspector Tab Selector */}
+                          <div className="flex items-center space-x-1 border-b border-white/5 pb-2 text-xs">
+                            <button
+                              onClick={() => setInspectorTab("overview")}
+                              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer text-[11px] ${
+                                inspectorTab === "overview"
+                                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/25"
+                                  : "text-slate-400 hover:text-white border border-transparent hover:bg-white/5"
+                              }`}
                             >
-                              <input
-                                name="commentText"
-                                placeholder="Add verification commentary..."
-                                className="flex-1 bg-slate-950/45 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/40"
-                              />
-                              <button
-                                type="submit"
-                                className="px-3.5 py-2 bg-gradient-to-tr from-blue-500 to-indigo-650 border border-white/10 rounded-xl text-white font-bold hover:brightness-110 shadow-md transition cursor-pointer text-xs"
-                              >
-                                Certify
-                              </button>
-                            </form>
+                              📋 Overview
+                            </button>
+                            <button
+                              onClick={() => setInspectorTab("timeline")}
+                              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer text-[11px] ${
+                                inspectorTab === "timeline"
+                                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/25"
+                                  : "text-slate-400 hover:text-white border border-transparent hover:bg-white/5"
+                              }`}
+                            >
+                              ⏱️ Timeline
+                            </button>
+                            <button
+                              onClick={() => setInspectorTab("comments")}
+                              className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer text-[11px] ${
+                                inspectorTab === "comments"
+                                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/25"
+                                  : "text-slate-400 hover:text-white border border-transparent hover:bg-white/5"
+                              }`}
+                            >
+                              💬 Comments ({selectedIssue.comments.length})
+                            </button>
                           </div>
+
+                          {/* Tab Contents */}
+                          <AnimatePresence mode="wait">
+                            {inspectorTab === "overview" && (
+                              <motion.div
+                                key="overview"
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -5 }}
+                                transition={{ duration: 0.15 }}
+                                className="space-y-3"
+                              >
+                                <p className="text-xs text-slate-350 leading-relaxed">{selectedIssue.description}</p>
+                                
+                                <div className="text-[10px] text-slate-400 flex flex-wrap gap-x-4 gap-y-1 font-mono border-t border-white/5 pt-2">
+                                  <span>Reporter: <strong className="text-slate-300">{selectedIssue.reporterName}</strong></span>
+                                  <span>Address: <strong className="text-slate-300">{selectedIssue.address}</strong></span>
+                                  <span>Date: <strong className="text-slate-300">{new Date(selectedIssue.createdAt).toLocaleDateString()}</strong></span>
+                                </div>
+
+                                {/* AI recommendations panel inner */}
+                                {selectedIssue.recommendation && (
+                                  <div className="bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-md rounded-2xl p-4 text-[11px] leading-relaxed flex items-start space-x-2 text-indigo-200">
+                                    <span className="font-bold flex-shrink-0 text-amber-300 font-mono text-[9px] bg-amber-500/10 px-1.5 py-0.5 border border-amber-500/35 rounded uppercase tracking-wider h-max mt-0.5">AI ACTION TIPS</span>
+                                    <p>{selectedIssue.recommendation}</p>
+                                  </div>
+                                )}
+                              </motion.div>
+                            )}
+
+                            {inspectorTab === "timeline" && (
+                              <motion.div
+                                key="timeline"
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -5 }}
+                                transition={{ duration: 0.15 }}
+                              >
+                                <IssueTimeline issue={selectedIssue} />
+                              </motion.div>
+                            )}
+
+                            {inspectorTab === "comments" && (
+                              <motion.div
+                                key="comments"
+                                initial={{ opacity: 0, y: 5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -5 }}
+                                transition={{ duration: 0.15 }}
+                                className="space-y-3 text-xs"
+                              >
+                                <span className="text-[10px] block font-bold text-slate-400 uppercase tracking-widest">Verification Thread & Community Comments ({selectedIssue.comments.length})</span>
+                                <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+                                  {selectedIssue.comments.length === 0 ? (
+                                    <p className="text-slate-500 italic py-3 text-center">No community feedback certified yet. Submit a message to build reputation!</p>
+                                  ) : (
+                                    selectedIssue.comments.map(c => (
+                                      <div key={c.id} className="p-3 bg-slate-900/40 backdrop-blur-md rounded-2xl border border-white/5">
+                                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                                          <span className="font-bold text-slate-300">{c.author}</span>
+                                          <span>{new Date(c.createdAt).toLocaleDateString()}</span>
+                                        </div>
+                                        <p className="text-slate-355 mt-1 leading-relaxed text-[11px]">{c.text}</p>
+                                      </div>
+                                    ))
+                                  )}
+                                </div>
+                                {/* Simple comment poster */}
+                                <form
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const form = e.currentTarget;
+                                    const textInput = form.elements.namedItem("commentText") as HTMLInputElement;
+                                    if (textInput.value.trim()) {
+                                      fetch(`/api/issues/${selectedIssue.id}/comment`, {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ author: currentUsername, text: textInput.value })
+                                      }).then(res => res.json()).then(updated => {
+                                        setIssues(prev => prev.map(i => i.id === selectedIssue.id ? updated : i));
+                                        textInput.value = "";
+                                      });
+                                    }
+                                  }}
+                                  className="mt-2 flex items-center space-x-2"
+                                >
+                                  <input
+                                    name="commentText"
+                                    placeholder="Add verification commentary..."
+                                    className="flex-1 bg-slate-950/45 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/40"
+                                  />
+                                  <button
+                                    type="submit"
+                                    className="px-3.5 py-2 bg-gradient-to-tr from-blue-500 to-indigo-650 border border-white/10 rounded-xl text-white font-bold hover:brightness-110 shadow-md transition cursor-pointer text-xs"
+                                  >
+                                    Certify
+                                  </button>
+                                </form>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </motion.div>
                       )}
                     </div>

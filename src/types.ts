@@ -6,6 +6,14 @@ export interface Comment {
   createdAt: string;
 }
 
+export interface TimelineEvent {
+  id: string;
+  status: "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed";
+  timestamp: string;
+  title: string;
+  description: string;
+}
+
 export interface Issue {
   id: string;
   title: string;
@@ -23,6 +31,7 @@ export interface Issue {
   upvotes: number;
   upvotedByUser: boolean;
   comments: Comment[];
+  timeline: TimelineEvent[];
   duplicateOfId?: string | null;
   duplicateChecked: boolean;
   duplicateReason?: string;

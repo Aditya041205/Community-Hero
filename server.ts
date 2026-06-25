@@ -152,6 +152,14 @@ interface Comment {
   createdAt: string;
 }
 
+interface TimelineEvent {
+  id: string;
+  status: "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed";
+  timestamp: string;
+  title: string;
+  description: string;
+}
+
 interface Issue {
   id: string;
   title: string;
@@ -169,6 +177,7 @@ interface Issue {
   upvotes: number;
   upvotedByUser: boolean;
   comments: Comment[];
+  timeline: TimelineEvent[];
   duplicateOfId?: string | null;
   duplicateChecked: boolean;
   duplicateReason?: string;
@@ -211,6 +220,36 @@ let issues: Issue[] = [
         createdAt: new Date(Date.now() - 12 * 3600000).toISOString()
       }
     ],
+    timeline: [
+      {
+        id: "tl-101-1",
+        status: "Reported",
+        title: "Pothole Reported",
+        description: "Citizen Elena Rostova flagged a deep pothole on the Midtown active bus lane.",
+        timestamp: new Date(Date.now() - 48 * 3600000).toISOString()
+      },
+      {
+        id: "tl-101-2",
+        status: "Verified",
+        title: "Community Upvoted",
+        description: "Verified automatically by the civic engine due to high local community voting activity.",
+        timestamp: new Date(Date.now() - 36 * 3600000).toISOString()
+      },
+      {
+        id: "tl-101-3",
+        status: "Assigned",
+        title: "Dispatch Assigned",
+        description: "Assigned to Midtown Road Paving Crew B to prepare rapid paving machinery.",
+        timestamp: new Date(Date.now() - 24 * 3600000).toISOString()
+      },
+      {
+        id: "tl-101-4",
+        status: "In Progress",
+        title: "Repairs Commenced",
+        description: "Crew B deployed warning cones on Midtown Lane and began milling subgrade asphalt.",
+        timestamp: new Date(Date.now() - 12 * 3600000).toISOString()
+      }
+    ],
     duplicateChecked: true,
     isMock: true,
     image: "",
@@ -241,6 +280,29 @@ let issues: Issue[] = [
         createdAt: new Date(Date.now() - 2 * 3600000).toISOString()
       }
     ],
+    timeline: [
+      {
+        id: "tl-102-1",
+        status: "Reported",
+        title: "Water Flood Reported",
+        description: "Water pipe pressure leak reported by resident Julian Vance.",
+        timestamp: new Date(Date.now() - 6 * 3600000).toISOString()
+      },
+      {
+        id: "tl-102-2",
+        status: "Verified",
+        title: "Critical Priority Escalated",
+        description: "Civic inspectors verified coordinates near Bryant Park and flagged critical safety risk.",
+        timestamp: new Date(Date.now() - 5 * 3600000).toISOString()
+      },
+      {
+        id: "tl-102-3",
+        status: "Assigned",
+        title: "Plumbing Squad Dispatched",
+        description: "Dispatched Rapid Water Infrastructure Support with heavy pumping equipment.",
+        timestamp: new Date(Date.now() - 4 * 3600000).toISOString()
+      }
+    ],
     duplicateChecked: true,
     isMock: true,
     createdAt: new Date(Date.now() - 6 * 3600000).toISOString()
@@ -269,6 +331,36 @@ let issues: Issue[] = [
         createdAt: new Date(Date.now() - 1 * 3600000).toISOString()
       }
     ],
+    timeline: [
+      {
+        id: "tl-103-1",
+        status: "Reported",
+        title: "Trash Dumping Reported",
+        description: "Resident Maya Lin reported multiple bags of building debris and trash dumped in the alley.",
+        timestamp: new Date(Date.now() - 24 * 3600000).toISOString()
+      },
+      {
+        id: "tl-103-2",
+        status: "Assigned",
+        title: "Sanitation Assigned",
+        description: "Sanitation ticket issued to Eco-Clean Sanitation Squad.",
+        timestamp: new Date(Date.now() - 18 * 3600000).toISOString()
+      },
+      {
+        id: "tl-103-3",
+        status: "In Progress",
+        title: "Clean Up in Progress",
+        description: "Sanitation flatbed truck arrived to load construction wastes.",
+        timestamp: new Date(Date.now() - 10 * 3600000).toISOString()
+      },
+      {
+        id: "tl-103-4",
+        status: "Resolved",
+        title: "Alley Swept Clean",
+        description: "Eco-Clean Sanitation Squad successfully completed trash removal and pressure washed the lane.",
+        timestamp: new Date(Date.now() - 4 * 3600000).toISOString()
+      }
+    ],
     duplicateChecked: true,
     isMock: true,
     createdAt: new Date(Date.now() - 24 * 3600000).toISOString(),
@@ -290,6 +382,15 @@ let issues: Issue[] = [
     upvotes: 9,
     upvotedByUser: false,
     comments: [],
+    timeline: [
+      {
+        id: "tl-104-1",
+        status: "Reported",
+        title: "Blinking Streetlights Logged",
+        description: "Lucas Haddon reported hazardous strobe flashing of three utility lights.",
+        timestamp: new Date(Date.now() - 3 * 3600000).toISOString()
+      }
+    ],
     duplicateChecked: true,
     isMock: true,
     createdAt: new Date(Date.now() - 3 * 3600000).toISOString()
@@ -310,6 +411,22 @@ let issues: Issue[] = [
     upvotes: 24,
     upvotedByUser: false,
     comments: [],
+    timeline: [
+      {
+        id: "tl-105-1",
+        status: "Reported",
+        title: "Blockage Logged",
+        description: "Sarah Connor reported packed leaves blockading stormwater storm sewers.",
+        timestamp: new Date(Date.now() - 18 * 3600000).toISOString()
+      },
+      {
+        id: "tl-105-2",
+        status: "Verified",
+        title: "Community Verified",
+        description: "Verified by local upvote frequency; dispatched to municipal priority bucket.",
+        timestamp: new Date(Date.now() - 12 * 3600000).toISOString()
+      }
+    ],
     duplicateChecked: true,
     isMock: true,
     createdAt: new Date(Date.now() - 18 * 3600000).toISOString()
@@ -774,6 +891,14 @@ app.post("/api/issues/:id/comment", (req, res) => {
   // If evidence is attached, let's bump the upvote or status to Verified
   if (evidencePhoto && issue.status === "Reported") {
     issue.status = "Verified";
+    issue.timeline = issue.timeline || [];
+    issue.timeline.push({
+      id: "tl-" + Math.random().toString(36).substr(2, 9),
+      status: "Verified",
+      title: "Evidence Uploaded",
+      description: `Citizen ${author || "Anonymous Hero"} uploaded photo evidence. Status upgraded to Verified.`,
+      timestamp: new Date().toISOString()
+    });
     notifications.unshift({
       id: "n-" + Math.random().toString(36).substr(2, 9),
       title: "Complaint Status Upgraded to Verified",
@@ -796,6 +921,9 @@ app.post("/api/issues/:id/status", (req, res) => {
     return res.status(404).json({ error: "Civic Issue not found" });
   }
 
+  const oldStatus = issue.status;
+  const oldTeam = issue.assignedTeam;
+
   if (status) {
     issue.status = status;
     if (status === "Resolved") {
@@ -811,6 +939,29 @@ app.post("/api/issues/:id/status", (req, res) => {
   }
   if (assignedTeam) {
     issue.assignedTeam = assignedTeam;
+  }
+
+  // Create timeline event if status or team changed
+  if ((status && status !== oldStatus) || (assignedTeam && assignedTeam !== oldTeam)) {
+    const finalStatus = status || oldStatus;
+    let titleStr = `Status Updated: ${finalStatus}`;
+    let descStr = `Municipal authorities changed status to ${finalStatus}.`;
+    
+    if (assignedTeam && assignedTeam !== oldTeam) {
+      titleStr = `Team Dispatched: ${assignedTeam}`;
+      descStr = `Assigned to ${assignedTeam} and status set to ${finalStatus}.`;
+    } else if (assignedTeam) {
+      descStr += ` Team assigned: ${assignedTeam}.`;
+    }
+
+    issue.timeline = issue.timeline || [];
+    issue.timeline.push({
+      id: "tl-" + Math.random().toString(36).substr(2, 9),
+      status: finalStatus,
+      title: titleStr,
+      description: descStr,
+      timestamp: new Date().toISOString()
+    });
   }
 
   notifications.unshift({
@@ -1019,6 +1170,26 @@ app.post("/api/issues/report", async (req, res) => {
     autoRecommendation = fallback.autoRecommendation;
   }
 
+  const initialTimeline: TimelineEvent[] = [
+    {
+      id: "tl-" + Math.random().toString(36).substr(2, 9),
+      status: "Reported",
+      title: "Issue Registered",
+      description: `Report filed by resident ${reporterName || "Anonymous Hero"}.`,
+      timestamp: new Date().toISOString()
+    }
+  ];
+
+  if (duplicateOfId) {
+    initialTimeline.push({
+      id: "tl-" + Math.random().toString(36).substr(2, 9),
+      status: "Verified",
+      title: "Verified: Proximity Match",
+      description: duplicateReason || `Merged with active issue thread due to geographic proximity. Status set to Verified.`,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   // Create the complete issue entity matching MongoDB properties
   const newIssue: Issue = {
     id: "complaint-" + Math.floor(100 + Math.random() * 900),
@@ -1036,6 +1207,7 @@ app.post("/api/issues/report", async (req, res) => {
     upvotes: duplicateOfId ? 5 : 1,
     upvotedByUser: false,
     comments: [],
+    timeline: initialTimeline,
     duplicateOfId,
     duplicateChecked: true,
     duplicateReason: duplicateReason || undefined,
