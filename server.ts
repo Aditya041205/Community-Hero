@@ -47,47 +47,28 @@ const JWT_SECRET = process.env.JWT_SECRET || "community_hero_secret_key_123_hack
 const USERS_FILE = path.join(process.cwd(), "users.json");
 
 // Initialize mock user DB with bcrypt hashed passwords
-let users: User[] = [
-  {
-    id: "user-citizen",
-    email: "citizen@communityhero.ai",
-    passwordHash: bcrypt.hashSync("password123", 10),
-    name: "Aditya Sharma",
-    role: "citizen",
-    points: 1540,
-    badge: "City Architect",
-    reputation: 1240,
-    joinedAt: new Date(Date.now() - 30 * 24 * 3600000).toISOString()
-  },
-  {
-    id: "user-authority",
-    email: "officer@communityhero.ai",
-    passwordHash: bcrypt.hashSync("password123", 10),
-    name: "Officer Marcus Vance",
-    role: "authority",
-    points: 1120,
-    badge: "Pothole Patrol",
-    reputation: 1120,
-    joinedAt: new Date(Date.now() - 15 * 24 * 3600000).toISOString()
-  },
-  {
-    id: "user-admin",
-    email: "admin@communityhero.ai",
-    passwordHash: bcrypt.hashSync("password123", 10),
-    name: "Chief Administrator",
-    role: "admin",
-    points: 5000,
-    badge: "City Ruler",
-    reputation: 5000,
-    joinedAt: new Date(Date.now() - 90 * 24 * 3600000).toISOString()
-  }
-];
+let users: User[] = [];
 
 // Load users from persistent users.json if exists
 try {
   if (fs.existsSync(USERS_FILE)) {
     const fileData = fs.readFileSync(USERS_FILE, "utf-8");
-    users = JSON.parse(fileData);
+    const loadedUsers = JSON.parse(fileData);
+    if (Array.isArray(loadedUsers)) {
+      // Filter out any mock users
+      users = loadedUsers.filter((u: any) => 
+        u && 
+        u.email && 
+        !u.email.toLowerCase().endsWith("@communityhero.ai") &&
+        u.id !== "user-citizen" &&
+        u.id !== "user-authority" &&
+        u.id !== "user-admin"
+      );
+      if (users.length !== loadedUsers.length) {
+        console.log(`[AUTH] Cleaned ${loadedUsers.length - users.length} mock users from persistent storage.`);
+        fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
+      }
+    }
     console.log(`[AUTH] Successfully loaded ${users.length} users from persistent storage (users.json).`);
   } else {
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), "utf-8");
@@ -824,6 +805,45 @@ app.get("/api/auth/me", authenticateJWT, (req: any, res) => {
 app.get("/api/admin/users", authenticateJWT, requireRole(["admin"]), (req, res) => {
   const usersResponse = users.map(({ passwordHash, ...user }) => user);
   res.json(usersResponse);
+});
+
+// Sync users cache with Firestore (Admin only)
+app.post("/api/admin/sync-users-cache", authenticateJWT, requireRole(["admin"]), (req, res) => {
+  const { users: incomingUsers } = req.body;
+  if (!Array.isArray(incomingUsers)) {
+    return res.status(400).json({ error: "Invalid payload: users array is required" });
+  }
+
+  // Update or insert incoming users into our local cache
+  incomingUsers.forEach((incoming) => {
+    const existingIndex = users.findIndex(u => u.id === incoming.id || u.email.toLowerCase() === incoming.email.toLowerCase());
+    const mappedUser: User = {
+      id: incoming.uid || incoming.id,
+      email: incoming.email,
+      name: incoming.name || incoming.displayName || "Civic Connect User",
+      role: incoming.role || "citizen",
+      points: incoming.points || 0,
+      badge: incoming.badge || "Civic Novice",
+      reputation: incoming.reputation || incoming.points || 0,
+      joinedAt: incoming.joinedAt || new Date().toISOString(),
+      isBlocked: !!incoming.isBlocked
+    };
+
+    if (existingIndex !== -1) {
+      users[existingIndex] = { ...users[existingIndex], ...mappedUser };
+    } else {
+      users.push(mappedUser);
+    }
+  });
+
+  // Remove any mock users or users not present in incoming list unless they are local auth users with passwordHash
+  users = users.filter(u => 
+    u.passwordHash || 
+    incomingUsers.some(incoming => incoming.id === u.id || incoming.email.toLowerCase() === u.email.toLowerCase())
+  );
+
+  saveUsersToFile();
+  res.json({ success: true, count: users.length });
 });
 
 // Update user role (Admin only)

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { UserProfile, AuthState } from "../types";
 import { 
   auth, 
+  db,
   googleProvider, 
   signInWithPopup, 
   signInWithEmailAndPassword, 
@@ -11,6 +12,7 @@ import {
   onAuthStateChanged
 } from "../lib/firebase";
 import { sendPasswordResetEmail } from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
 interface AuthContextType extends AuthState {
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -52,6 +54,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (firebaseUser) {
         try {
           console.log(`[AUTH-CLIENT] Firebase user authenticated: ${firebaseUser.email}`);
+          
+          // Determine Role and create/update Firestore document
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          const getRoleByEmail = (email: string): string => {
+            const normalized = email.toLowerCase().trim();
+            if (normalized === "adityasharma01021@gmail.com") return "admin";
+            if (normalized === "adityaksharma00412@gmail.com") return "authority";
+            return "citizen";
+          };
+          
+          const role = getRoleByEmail(firebaseUser.email || "");
+          const displayName = firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Civic Connect User";
+          const photoURL = firebaseUser.photoURL || "";
+          
+          if (!userDocSnap.exists()) {
+            await setDoc(userDocRef, {
+              uid: firebaseUser.uid,
+              displayName,
+              email: firebaseUser.email || "",
+              photoURL,
+              role,
+              createdAt: serverTimestamp(),
+              lastLoginAt: serverTimestamp()
+            });
+            console.log("[AUTH-CLIENT] Firestore user profile created.");
+          } else {
+            await setDoc(userDocRef, {
+              uid: firebaseUser.uid,
+              displayName,
+              email: firebaseUser.email || "",
+              photoURL,
+              role,
+              lastLoginAt: serverTimestamp()
+            }, { merge: true });
+            console.log("[AUTH-CLIENT] Firestore user profile lastLoginAt updated.");
+          }
           
           // Obtain client Firebase ID Token
           const idToken = await firebaseUser.getIdToken();

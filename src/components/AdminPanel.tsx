@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { UserProfile, UserRole, Issue } from "../types";
 import { useAuth } from "./AuthContext";
 import { motion, AnimatePresence } from "motion/react";
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { 
   Users, 
   Shield, 
@@ -57,37 +59,135 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/users", {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
+      const usersColRef = collection(db, "users");
+      const snapshot = await getDocs(usersColRef);
+      const usersList: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        usersList.push({
+          id: docSnap.id,
+          uid: data.uid || docSnap.id,
+          name: data.displayName || data.name || "Civic Connect User",
+          email: data.email || "",
+          role: data.role || "citizen",
+          avatarUrl: data.photoURL || "",
+          points: data.points || 0,
+          badge: data.badge || "Civic Novice",
+          reputation: data.reputation || 0,
+          joinedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
+          lastLoginAt: data.lastLoginAt ? (data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt) : new Date().toISOString(),
+          isBlocked: !!data.isBlocked
+        });
       });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data);
-      } else {
-        const errData = await res.json();
-        setError(errData.error || "Failed to fetch platform users.");
-      }
-    } catch (err) {
-      setError("Network error fetching users.");
+      setUsers(usersList);
+      setSuccess("Successfully refreshed system directory directly from Firestore.");
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      console.error("Manual fetch users error:", err);
+      setError("Failed to fetch users from Firestore: " + (err.message || err));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (token) {
-      fetchUsers();
-    }
+    if (!token) return;
+
+    setLoading(true);
+    setError(null);
+
+    const usersColRef = collection(db, "users");
+    const unsubscribe = onSnapshot(usersColRef, (snapshot) => {
+      const usersList: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        usersList.push({
+          id: docSnap.id,
+          uid: data.uid || docSnap.id,
+          name: data.displayName || data.name || "Civic Connect User",
+          email: data.email || "",
+          role: data.role || "citizen",
+          avatarUrl: data.photoURL || "",
+          points: data.points || 0,
+          badge: data.badge || "Civic Novice",
+          reputation: data.reputation || 0,
+          joinedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
+          lastLoginAt: data.lastLoginAt ? (data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt) : new Date().toISOString(),
+          isBlocked: !!data.isBlocked
+        });
+      });
+      setUsers(usersList);
+      setLoading(false);
+    }, (err) => {
+      console.error("Firestore users realtime subscription failed:", err);
+      setError("Failed to listen to realtime user directory updates.");
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [token]);
+
+  const handleSyncFirebaseUsers = async () => {
+    setUpdatingId("sync-button");
+    setError(null);
+    setSuccess(null);
+    try {
+      const usersColRef = collection(db, "users");
+      const snapshot = await getDocs(usersColRef);
+      const usersList: UserProfile[] = [];
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        usersList.push({
+          id: docSnap.id,
+          uid: data.uid || docSnap.id,
+          name: data.displayName || data.name || "Civic Connect User",
+          email: data.email || "",
+          role: data.role || "citizen",
+          avatarUrl: data.photoURL || "",
+          points: data.points || 0,
+          badge: data.badge || "Civic Novice",
+          reputation: data.reputation || 0,
+          joinedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
+          lastLoginAt: data.lastLoginAt ? (data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt) : new Date().toISOString(),
+          isBlocked: !!data.isBlocked
+        });
+      });
+      
+      // Sync cache on the Express backend
+      const syncRes = await fetch("/api/admin/sync-users-cache", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ users: usersList })
+      });
+      
+      if (syncRes.ok) {
+        setSuccess(`Successfully synchronized ${usersList.length} authenticated profiles with Firestore and local cache!`);
+      } else {
+        setSuccess(`Successfully synchronized ${usersList.length} authenticated profiles directly from Firestore.`);
+      }
+      setTimeout(() => setSuccess(null), 5000);
+    } catch (err: any) {
+      console.error("Failed to manual sync Firebase users:", err);
+      setError("Sync failed: " + (err.message || err));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
 
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingId(userId);
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch(`/api/admin/users/${userId}/role`, {
+      // Update directly in Firestore
+      const userDocRef = doc(db, "users", userId);
+      await updateDoc(userDocRef, { role: newRole });
+
+      // Also update Express backend cache
+      await fetch(`/api/admin/users/${userId}/role`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -96,16 +196,11 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
         body: JSON.stringify({ role: newRole })
       });
 
-      if (res.ok) {
-        const updatedUser = await res.json();
-        setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
-        setSuccess(`Successfully updated role to ${newRole}`);
-      } else {
-        const errData = await res.json();
-        setError(errData.error || "Failed to change role.");
-      }
-    } catch (err) {
-      setError("Network error updating role.");
+      setSuccess(`Successfully updated role to ${newRole}`);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      console.error("Error updating role:", err);
+      setError("Failed to change user role: " + (err.message || err));
     } finally {
       setUpdatingId(null);
     }
@@ -115,25 +210,26 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     setUpdatingId(userId);
     setError(null);
     setSuccess(null);
-    const endpoint = currentlyBlocked ? "unblock" : "block";
+    const shouldBlock = !currentlyBlocked;
     try {
-      const res = await fetch(`/api/admin/users/${userId}/${endpoint}`, {
+      // Update directly in Firestore
+      const userDocRef = doc(db, "users", userId);
+      await updateDoc(userDocRef, { isBlocked: shouldBlock });
+
+      // Also update Express backend cache
+      const endpoint = shouldBlock ? "block" : "unblock";
+      await fetch(`/api/admin/users/${userId}/${endpoint}`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
         }
       });
 
-      if (res.ok) {
-        const updatedUser = await res.json();
-        setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
-        setSuccess(`User successfully ${currentlyBlocked ? "unblocked" : "blocked"}.`);
-      } else {
-        const errData = await res.json();
-        setError(errData.error || `Failed to ${endpoint} user.`);
-      }
-    } catch (err) {
-      setError(`Network error trying to ${endpoint} user.`);
+      setSuccess(`User successfully ${shouldBlock ? "blocked" : "unblocked"}.`);
+      setTimeout(() => setSuccess(null), 4000);
+    } catch (err: any) {
+      console.error("Error toggling block state:", err);
+      setError("Failed to update block status: " + (err.message || err));
     } finally {
       setUpdatingId(null);
     }
@@ -366,15 +462,32 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                 exit={{ opacity: 0, y: -5 }}
                 className="overflow-x-auto"
               >
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Global Account Directories</h3>
-                  <button
-                    onClick={fetchUsers}
-                    className="px-2.5 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-mono text-slate-300 flex items-center gap-1 cursor-pointer"
-                  >
-                    <RefreshCw size={11} />
-                    <span>FORCE RETRIEVE</span>
-                  </button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5 bg-slate-900/40 p-4 rounded-xl border border-white/5">
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Global Account Directories</h3>
+                    <div className="text-[11px] text-slate-400 mt-1 font-mono flex items-center gap-2">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>Total Authenticated Users:</span>
+                      <span className="text-indigo-400 font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{users.length}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <button
+                      onClick={handleSyncFirebaseUsers}
+                      disabled={updatingId === "sync-button"}
+                      className="px-3 py-1.5 bg-indigo-600/25 hover:bg-indigo-600/40 border border-indigo-500/35 rounded-lg text-[10px] font-mono text-indigo-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all duration-200"
+                    >
+                      <RefreshCw size={11} className={updatingId === "sync-button" ? "animate-spin" : ""} />
+                      <span>SYNC FIREBASE USERS</span>
+                    </button>
+                    <button
+                      onClick={fetchUsers}
+                      className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-mono text-slate-300 flex items-center gap-1 cursor-pointer transition-all duration-200"
+                    >
+                      <RefreshCw size={11} />
+                      <span>FORCE RETRIEVE</span>
+                    </button>
+                  </div>
                 </div>
 
                 <table className="w-full text-left border-collapse text-xs">

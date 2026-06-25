@@ -9,6 +9,7 @@ import {
   signOut,
   onAuthStateChanged
 } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // Firebase configuration from firebase-applet-config.json
 const firebaseConfig = {
@@ -23,6 +24,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app, "ai-studio-adec457a-8583-4ada-84c2-6aaf4e3a1b70");
 const googleProvider = new GoogleAuthProvider();
 
 // Configure provider to prompt for account selection
@@ -32,6 +34,7 @@ googleProvider.setCustomParameters({
 
 export {
   auth,
+  db,
   googleProvider,
   signInWithPopup,
   signInWithEmailAndPassword,
@@ -40,3 +43,4 @@ export {
   signOut,
   onAuthStateChanged
 };
+

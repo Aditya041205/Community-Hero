@@ -76,6 +76,7 @@ export type UserRole = "citizen" | "authority" | "admin";
 
 export interface UserProfile {
   id: string;
+  uid?: string;
   email: string;
   name: string;
   role: UserRole;
@@ -85,6 +86,7 @@ export interface UserProfile {
   avatarUrl?: string;
   joinedAt: string;
   isBlocked?: boolean;
+  lastLoginAt?: string;
 }
 
 export interface AuthState {
