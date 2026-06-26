@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen, LogOut, ShieldCheck, Clipboard, Shield, BarChart3, Trophy, Key
+  ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen, LogOut, ShieldCheck, Clipboard, Shield, BarChart3, Trophy, Key, RefreshCw
 } from "lucide-react";
 
 import InteractiveMap from "./components/InteractiveMap";
@@ -39,6 +39,7 @@ export default function App() {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<"overview" | "timeline" | "comments">("overview");
   const [clickedCoords, setClickedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [votingId, setVotingId] = useState<string | null>(null);
 
   // Synchronize browser history and popstate events
   useEffect(() => {
@@ -233,6 +234,7 @@ export default function App() {
   // Handler: Real-time upvotes with proper headers
   const handleVote = async (id: string) => {
     try {
+      setVotingId(id);
       const docRef = doc(db, "complaints", id);
       const currentIssue = issues.find(i => i.id === id);
       if (!currentIssue) return;
@@ -253,6 +255,8 @@ export default function App() {
       });
     } catch (err) {
       console.error("Vote action failed:", err);
+    } finally {
+      setVotingId(null);
     }
   };
 
@@ -303,6 +307,7 @@ export default function App() {
       setLeaderboard(await leaderboardRes.json());
     } catch (err) {
       console.error("Authority action failed:", err);
+      throw err;
     }
   };
 
@@ -651,9 +656,13 @@ export default function App() {
                                   </span>
                                   <button
                                     onClick={() => handleVote(selectedIssue.id)}
-                                    className={`px-3 py-1 rounded text-[11px] font-bold border transition ${selectedIssue.upvotedByUser ? 'bg-gradient-to-tr from-pink-500 to-rose-600 border-transparent text-white shadow-md' : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-200'} cursor-pointer`}
+                                    disabled={votingId === selectedIssue.id}
+                                    className={`px-3 py-1 rounded text-[11px] font-bold border transition ${selectedIssue.upvotedByUser ? 'bg-gradient-to-tr from-pink-500 to-rose-600 border-transparent text-white shadow-md' : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-200'} cursor-pointer disabled:opacity-50 flex items-center space-x-1`}
                                   >
-                                    {selectedIssue.upvotedByUser ? '♥ Upvoted' : '👍 Upvote'} ({selectedIssue.upvotes})
+                                    {votingId === selectedIssue.id ? (
+                                      <RefreshCw size={11} className="animate-spin mr-1" />
+                                    ) : null}
+                                    <span>{selectedIssue.upvotedByUser ? '♥ Upvoted' : '👍 Upvote'} ({selectedIssue.upvotes})</span>
                                   </button>
                                 </div>
                               </div>

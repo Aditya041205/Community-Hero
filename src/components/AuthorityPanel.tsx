@@ -179,24 +179,61 @@ export default function AuthorityPanel({
     }
   };
 
-  const handleAssignTeam = () => {
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const handleAssignTeam = async () => {
     if (selectedIssueId) {
-      onUpdateIssueStatus(selectedIssueId, "Assigned", chosenTeam);
-      if (onRefreshData) onRefreshData();
+      setActionLoading("assign");
+      setActionError(null);
+      setActionSuccess(null);
+      try {
+        await onUpdateIssueStatus(selectedIssueId, "Assigned", chosenTeam);
+        if (onRefreshData) onRefreshData();
+        setActionSuccess("Successfully deployed crew.");
+        setTimeout(() => setActionSuccess(null), 3000);
+      } catch (err: any) {
+        setActionError("Failed to deploy crew.");
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     if (selectedIssueId) {
-      onUpdateIssueStatus(selectedIssueId, "Verified");
-      if (onRefreshData) onRefreshData();
+      setActionLoading("verify");
+      setActionError(null);
+      setActionSuccess(null);
+      try {
+        await onUpdateIssueStatus(selectedIssueId, "Verified");
+        if (onRefreshData) onRefreshData();
+        setActionSuccess("Issue verified successfully.");
+        setTimeout(() => setActionSuccess(null), 3000);
+      } catch (err: any) {
+        setActionError("Failed to verify issue.");
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
-  const handleAdvanceToInProgress = () => {
+  const handleAdvanceToInProgress = async () => {
     if (selectedIssueId) {
-      onUpdateIssueStatus(selectedIssueId, "In Progress");
-      if (onRefreshData) onRefreshData();
+      setActionLoading("progress");
+      setActionError(null);
+      setActionSuccess(null);
+      try {
+        await onUpdateIssueStatus(selectedIssueId, "In Progress");
+        if (onRefreshData) onRefreshData();
+        setActionSuccess("Status updated to In Progress.");
+        setTimeout(() => setActionSuccess(null), 3000);
+      } catch (err: any) {
+        setActionError("Failed to update status.");
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -355,33 +392,44 @@ export default function AuthorityPanel({
                   {/* 1. Verify Ticket */}
                   <button
                     onClick={handleVerify}
-                    disabled={selectedIssue.status !== "Reported"}
+                    disabled={selectedIssue.status !== "Reported" || actionLoading !== null}
                     className="p-2.5 bg-slate-950/50 hover:bg-white/5 border border-white/10 rounded-xl text-slate-300 hover:text-white flex flex-col items-center justify-center gap-1.5 transition-all text-center disabled:opacity-30 cursor-pointer"
                   >
-                    <Eye size={14} className="text-cyan-400" />
-                    <span>Verify Issue</span>
+                    <Eye size={14} className={actionLoading === "verify" ? "text-cyan-400 animate-pulse" : "text-cyan-400"} />
+                    <span>{actionLoading === "verify" ? "Verifying..." : "Verify Issue"}</span>
                   </button>
 
                   {/* 2. Advance to In Progress */}
                   <button
                     onClick={handleAdvanceToInProgress}
-                    disabled={selectedIssue.status !== "Assigned" && selectedIssue.status !== "Verified"}
+                    disabled={(selectedIssue.status !== "Assigned" && selectedIssue.status !== "Verified") || actionLoading !== null}
                     className="p-2.5 bg-slate-950/50 hover:bg-white/5 border border-white/10 rounded-xl text-slate-300 hover:text-white flex flex-col items-center justify-center gap-1.5 transition-all text-center disabled:opacity-30 cursor-pointer"
                   >
-                    <FileText size={14} className="text-amber-400" />
-                    <span>Start Repair</span>
+                    <FileText size={14} className={actionLoading === "progress" ? "text-amber-400 animate-pulse" : "text-amber-400"} />
+                    <span>{actionLoading === "progress" ? "Starting..." : "Start Repair"}</span>
                   </button>
 
                   {/* 3. Squad Assignment */}
                   <button
                     onClick={handleAssignTeam}
-                    disabled={selectedIssue.status === "Closed" || selectedIssue.status === "Resolved"}
+                    disabled={selectedIssue.status === "Closed" || selectedIssue.status === "Resolved" || actionLoading !== null}
                     className="p-2.5 bg-indigo-650/15 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-xl text-indigo-300 hover:text-white flex flex-col items-center justify-center gap-1.5 transition-all text-center disabled:opacity-30 cursor-pointer"
                   >
-                    <Briefcase size={14} className="text-indigo-400" />
-                    <span>Deploy Crew</span>
+                    <Briefcase size={14} className={actionLoading === "assign" ? "text-indigo-400 animate-pulse" : "text-indigo-400"} />
+                    <span>{actionLoading === "assign" ? "Deploying..." : "Deploy Crew"}</span>
                   </button>
                 </div>
+                
+                {actionError && (
+                  <div className="p-2 bg-red-500/10 border border-red-500/20 text-red-400 rounded-lg text-[10px] mt-2">
+                    {actionError}
+                  </div>
+                )}
+                {actionSuccess && (
+                  <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg text-[10px] mt-2">
+                    {actionSuccess}
+                  </div>
+                )}
 
                 {/* Squad Picker Selector */}
                 <div className="text-[11px] flex gap-2 items-center pt-1">

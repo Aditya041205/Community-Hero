@@ -744,13 +744,21 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                         <div className="col-span-3 pr-2">
                           <select
                             value={issue.assignedTeam || ""}
-                            onChange={(e) => {
+                            onChange={async (e) => {
                               if (onUpdateIssueStatus) {
-                                onUpdateIssueStatus(issue.id, "Assigned", e.target.value);
-                                if (onRefreshData) onRefreshData();
+                                setUpdatingId("assign-" + issue.id);
+                                try {
+                                  await onUpdateIssueStatus(issue.id, "Assigned", e.target.value);
+                                  if (onRefreshData) onRefreshData();
+                                } catch (error) {
+                                  setError("Failed to assign team");
+                                } finally {
+                                  setUpdatingId(null);
+                                }
                               }
                             }}
-                            className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-350 focus:outline-none w-full max-w-[180px] cursor-pointer"
+                            disabled={updatingId === "assign-" + issue.id}
+                            className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-350 focus:outline-none w-full max-w-[180px] cursor-pointer disabled:opacity-50"
                           >
                             <option value="">-- Unassigned --</option>
                             {authoritySquads.map(sq => (
@@ -760,17 +768,28 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                         </div>
                         <div className="col-span-1 text-right">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (onUpdateIssueStatus) {
-                                onUpdateIssueStatus(issue.id, "Resolved", issue.assignedTeam || "Ecosystem Action Team");
-                                if (onRefreshData) onRefreshData();
+                                setUpdatingId("resolve-" + issue.id);
+                                try {
+                                  await onUpdateIssueStatus(issue.id, "Resolved", issue.assignedTeam || "Ecosystem Action Team");
+                                  if (onRefreshData) onRefreshData();
+                                } catch (e) {
+                                  setError("Failed to force resolve");
+                                } finally {
+                                  setUpdatingId(null);
+                                }
                               }
                             }}
-                            disabled={issue.status === "Resolved"}
+                            disabled={issue.status === "Resolved" || updatingId === "resolve-" + issue.id}
                             className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-20 border border-emerald-500/20 text-emerald-400 rounded-lg transition cursor-pointer"
                             title="Directly Force Resolve"
                           >
-                            <CheckCircle2 size={12} />
+                            {updatingId === "resolve-" + issue.id ? (
+                              <RefreshCw size={12} className="animate-spin" />
+                            ) : (
+                              <CheckCircle2 size={12} />
+                            )}
                           </button>
                         </div>
                       </div>
