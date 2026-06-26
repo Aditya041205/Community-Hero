@@ -59,18 +59,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userDocSnap = await getDoc(userDocRef);
           
-          const getRoleByEmail = (email: string): string => {
-            const normalized = email.toLowerCase().trim();
-            if (normalized === "adityasharma01021@gmail.com") return "admin";
-            if (normalized === "adityaksharma00412@gmail.com") return "authority";
-            return "citizen";
-          };
-          
-          const role = getRoleByEmail(firebaseUser.email || "");
+          let role = "citizen";
           const displayName = firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Civic Connect User";
           const photoURL = firebaseUser.photoURL || "";
           
           if (!userDocSnap.exists()) {
+            // First login: Determine role from email if needed, default to citizen
+            const getRoleByEmail = (email: string): string => {
+              const normalized = email.toLowerCase().trim();
+              if (normalized === "adityasharma01021@gmail.com") return "admin";
+              if (normalized === "adityaksharma00412@gmail.com") return "authority";
+              return "citizen";
+            };
+            role = getRoleByEmail(firebaseUser.email || "");
+            
             await setDoc(userDocRef, {
               uid: firebaseUser.uid,
               displayName,
@@ -80,8 +82,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               createdAt: serverTimestamp(),
               lastLoginAt: serverTimestamp()
             });
-            console.log("[AUTH-CLIENT] Firestore user profile created.");
+            console.log(`[AUTH-CLIENT] First login. Firestore user profile created with role: ${role}`);
           } else {
+            // Subsequent logins: Do NOT overwrite the existing role. Use the stored role.
+            const existingData = userDocSnap.data();
+            role = existingData?.role || "citizen";
+            
             await setDoc(userDocRef, {
               uid: firebaseUser.uid,
               displayName,
@@ -90,7 +96,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               role,
               lastLoginAt: serverTimestamp()
             }, { merge: true });
-            console.log("[AUTH-CLIENT] Firestore user profile lastLoginAt updated.");
+            console.log(`[AUTH-CLIENT] Subsequent login. Firestore user profile lastLoginAt updated. Stored role: ${role}`);
           }
           
           // Obtain client Firebase ID Token
@@ -106,7 +112,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             body: JSON.stringify({
               uid: firebaseUser.uid,
               email: firebaseUser.email,
-              name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Civic Connect User"
+              name: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Civic Connect User",
+              role: role
             })
           });
 

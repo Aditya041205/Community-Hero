@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen, LogOut, ShieldCheck, Clipboard, Shield, BarChart3, Trophy, Key
@@ -66,6 +66,8 @@ export default function App() {
     }
   }, [user]);
 
+  const fetchErrorCountRef = useRef(0);
+
   // Fetch all server data
   const fetchAllData = async () => {
     try {
@@ -80,8 +82,17 @@ export default function App() {
       const analyticsRes = await fetch("/api/analytics");
       const analyticsData = await analyticsRes.json();
       setAnalytics(analyticsData);
+      
+      // Reset error count on successful fetch
+      fetchErrorCountRef.current = 0;
     } catch (err) {
-      console.error("Failed to fetch initial server state:", err);
+      fetchErrorCountRef.current += 1;
+      // Suppress severe console.error logs for the first few retries to handle transient startup delay gracefully
+      if (fetchErrorCountRef.current > 3) {
+        console.error("Failed to fetch initial server state:", err);
+      } else {
+        console.warn("Transient server state sync attempt failed (will retry):", err);
+      }
     }
   };
 

@@ -504,8 +504,8 @@ function getRoleAndBadgeByEmail(email: string): { role: "citizen" | "authority" 
 
 // Firebase auth sync endpoint
 app.post("/api/auth/firebase-sync", (req, res) => {
-  const { uid, email, name } = req.body;
-  console.log(`[AUTH-FIREBASE-SYNC] Sync request received for UID: "${uid}", email: "${email}", name: "${name}"`);
+  const { uid, email, name, role } = req.body;
+  console.log(`[AUTH-FIREBASE-SYNC] Sync request received for UID: "${uid}", email: "${email}", name: "${name}", role: "${role}"`);
 
   if (!uid || !email) {
     console.warn("[AUTH-FIREBASE-SYNC] Failed: Missing uid or email.");
@@ -513,6 +513,13 @@ app.post("/api/auth/firebase-sync", (req, res) => {
   }
 
   const { role: assignedRole, badge: assignedBadge } = getRoleAndBadgeByEmail(email);
+
+  // Helper to determine badge from role
+  const getBadgeByRole = (r: string): string => {
+    if (r === "admin") return "City Admin";
+    if (r === "authority") return "Chief Dispatcher";
+    return "Civic Novice";
+  };
 
   // Find user by email or by id
   let user = users.find(u => u.email.toLowerCase() === email.toLowerCase() || u.id === uid);
@@ -523,16 +530,18 @@ app.post("/api/auth/firebase-sync", (req, res) => {
   }
 
   if (!user) {
-    // If not found, create new user profile with deterministic role
+    // If not found, create new user profile
     const displayName = name || email.split("@")[0];
+    const finalRole = role || assignedRole;
+    const finalBadge = getBadgeByRole(finalRole);
 
     user = {
       id: uid, // Use Firebase UID directly as the persistent user ID
       email: email.toLowerCase(),
       name: displayName,
-      role: assignedRole,
+      role: finalRole,
       points: 100, // starting bonus
-      badge: assignedBadge,
+      badge: finalBadge,
       reputation: 100,
       joinedAt: new Date().toISOString()
     };
@@ -556,13 +565,13 @@ app.post("/api/auth/firebase-sync", (req, res) => {
 
     console.log(`[AUTH-FIREBASE-SYNC] Created and saved new synchronized profile for user "${user.name}" (ID: ${user.id}, Role: ${user.role}).`);
   } else {
-    // User already exists, update role/badge to enforce requirements, and display details
+    // User already exists, update details but do NOT overwrite their role with deterministic email role.
+    // Instead, if the client sent a role (loaded directly from Firestore), sync it into our cache.
     let updated = false;
     
-    // Crucial requirement check: Enforce the deterministic role for Aditya's emails in returning users too!
-    if (user.role !== assignedRole) {
-      user.role = assignedRole;
-      user.badge = assignedBadge;
+    if (role && user.role !== role) {
+      user.role = role;
+      user.badge = getBadgeByRole(role);
       updated = true;
     }
 
