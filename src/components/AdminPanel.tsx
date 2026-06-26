@@ -185,6 +185,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
       // Update directly in Firestore
       const userDocRef = doc(db, "users", userId);
       await updateDoc(userDocRef, { role: newRole });
+      console.log("Role updated by admin");
 
       // Also update Express backend cache
       await fetch(`/api/admin/users/${userId}/role`, {

@@ -174,7 +174,8 @@ interface Issue {
 }
 
 // Pre-populate with beautiful, highly realistic Metro Heights city dataset
-let issues: Issue[] = [
+let issues: Issue[] = [];
+const dummy_issues = [
   {
     id: "complaint-101",
     title: "Deep Pothole on Midtown Bus Lane",
@@ -424,7 +425,7 @@ const ISSUES_FILE = path.join(process.cwd(), "issues.json");
 try {
   if (fs.existsSync(ISSUES_FILE)) {
     const fileData = fs.readFileSync(ISSUES_FILE, "utf-8");
-    issues = JSON.parse(fileData);
+    issues = JSON.parse(fileData).filter((i: any) => !i.isMock);
     console.log(`[DATA] Successfully loaded ${issues.length} issues from persistent storage (issues.json).`);
   } else {
     fs.writeFileSync(ISSUES_FILE, JSON.stringify(issues, null, 2), "utf-8");
@@ -870,6 +871,7 @@ app.post("/api/admin/users/:id/role", authenticateJWT, requireRole(["admin"]), (
   }
 
   user.role = role;
+  console.log(`Role updated by admin: user "${user.name}" (ID: ${id}) changed to ${role}`);
   saveUsersToFile();
   const { passwordHash, ...userResponse } = user;
   res.json(userResponse);

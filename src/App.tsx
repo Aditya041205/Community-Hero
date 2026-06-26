@@ -17,6 +17,8 @@ import { useAuth } from "./components/AuthContext";
 import AuthPage from "./components/AuthPage";
 import AccessDenied from "./components/AccessDenied";
 import { Issue, LeaderboardEntry, AnalyticsData } from "./types";
+import { collection, onSnapshot, query, doc, setDoc, updateDoc, arrayUnion, increment } from "firebase/firestore";
+import { db } from "./lib/firebase";
 
 export default function App() {
   const { user, token, logout, loading } = useAuth();
@@ -68,30 +70,139 @@ export default function App() {
 
   const fetchErrorCountRef = useRef(0);
 
-  // Fetch all server data
+  // Real-time listener for complaints collection in Firestore
+  useEffect(() => {
+    if (!user) return;
+
+    console.log("[COMPLAINT-SYNC] Subscribing to Firestore complaints onSnapshot...");
+    const q = query(collection(db, "complaints"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const mappedIssues: Issue[] = querySnapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          id: data.complaintId || docSnap.id,
+          title: data.title || "",
+          description: data.description || "",
+          category: data.category || "",
+          latitude: data.latitude || 40.7500,
+          longitude: data.longitude || -73.9800,
+          address: data.location || "",
+          urgency: data.severity || "Medium",
+          status: data.status || "Reported",
+          reporterName: data.createdBy || "Anonymous Hero",
+          reporterReputation: data.reporterReputation || 100,
+          reporterBadge: data.reporterBadge || "Watchful Neighbor",
+          upvotes: data.verificationCount || 1,
+          upvotedByUser: data.upvotedByUser || false,
+          comments: data.comments || [],
+          timeline: data.timeline || [
+            {
+              id: "tl-init",
+              status: data.status || "Reported",
+              title: "Complaint Registered",
+              description: `Report filed by resident ${data.createdBy || "Anonymous Hero"}.`,
+              timestamp: data.createdAt || new Date().toISOString()
+            }
+          ],
+          duplicateChecked: data.duplicateChecked !== undefined ? data.duplicateChecked : true,
+          duplicateOfId: data.duplicateOfId || null,
+          duplicateReason: data.duplicateReason || undefined,
+          recommendation: data.recommendation || undefined,
+          image: data.imageUrl || "",
+          isMock: false,
+          createdAt: data.createdAt || new Date().toISOString(),
+          assignedAuthorityEmail: data.assignedAuthority || "",
+          assignedTeam: data.assignedTeam || data.assignedAuthority || "",
+          resolvedAt: data.resolvedAt || undefined,
+          resolutionNotes: data.resolutionNotes || undefined,
+          resolutionProofImage: data.resolutionProofImage || undefined
+        };
+      });
+
+      console.log(`[COMPLAINT-SYNC] Received ${mappedIssues.length} issues from Firestore.`);
+      setIssues(mappedIssues);
+    }, (err) => {
+      console.error("[COMPLAINT-SYNC] Firestore onSnapshot error:", err);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Dynamically compute and sync analytics whenever issues update
+  useEffect(() => {
+    const computeAnalytics = (issuesList: Issue[]): AnalyticsData => {
+      const total = issuesList.length;
+      const resolved = issuesList.filter(i => i.status === "Resolved" || i.status === "Closed").length;
+      const pending = total - resolved;
+      const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+
+      // Categories count
+      const categories: { [key: string]: number } = {
+        "Potholes": 0,
+        "Water leakage": 0,
+        "Garbage accumulation": 0,
+        "Broken streetlights": 0,
+        "Drainage blockage": 0
+      };
+      issuesList.forEach(i => {
+        if (i.category) {
+          categories[i.category] = (categories[i.category] || 0) + 1;
+        }
+      });
+
+      // District density count
+      const districtDensity: { [key: string]: number } = {};
+      issuesList.forEach(i => {
+        const lat = i.latitude;
+        const lng = i.longitude;
+        let sector = "Midtown Central";
+        if (lat > 40.752) sector = "North Sector";
+        else if (lat < 40.745) sector = "South Sector";
+        else if (lng < -73.988) sector = "West Sector";
+        else if (lng > -73.980) sector = "East Sector";
+        
+        districtDensity[sector] = (districtDensity[sector] || 0) + 1;
+      });
+
+      // Engagement score: sum of upvotes + comments
+      let engagement = 0;
+      issuesList.forEach(i => {
+        engagement += (i.upvotes || 0) + (i.comments?.length || 0) * 2;
+      });
+      const communityEngagementScore = total > 0 ? Math.round(engagement / total * 10) : 0;
+
+      const predictiveForecast = total > 0 
+        ? `AI Forecast: Dynamic analysis of the active ${total} tickets indicates standard resolution rates. Expect municipal routing optimizations in the next 48 hours.`
+        : "AI Forecast: Re-hydrating city analytics telemetry records... Waiting for active reports.";
+
+      return {
+        total,
+        resolved,
+        pending,
+        resolutionRate,
+        categories,
+        districtDensity,
+        predictiveForecast,
+        communityEngagementScore
+      };
+    };
+
+    setAnalytics(computeAnalytics(issues));
+  }, [issues]);
+
+  // Fetch only leaderboard metadata
   const fetchAllData = async () => {
     try {
-      const issuesRes = await fetch("/api/issues");
-      const issuesData = await issuesRes.json();
-      setIssues(issuesData);
-
       const leaderboardRes = await fetch("/api/leaderboard");
       const leaderboardData = await leaderboardRes.json();
       setLeaderboard(leaderboardData);
-
-      const analyticsRes = await fetch("/api/analytics");
-      const analyticsData = await analyticsRes.json();
-      setAnalytics(analyticsData);
       
       // Reset error count on successful fetch
       fetchErrorCountRef.current = 0;
     } catch (err) {
       fetchErrorCountRef.current += 1;
-      // Suppress severe console.error logs for the first few retries to handle transient startup delay gracefully
       if (fetchErrorCountRef.current > 3) {
-        console.error("Failed to fetch initial server state:", err);
-      } else {
-        console.warn("Transient server state sync attempt failed (will retry):", err);
+        console.error("Failed to fetch leaderboard state:", err);
       }
     }
   };
@@ -122,19 +233,24 @@ export default function App() {
   // Handler: Real-time upvotes with proper headers
   const handleVote = async (id: string) => {
     try {
-      const res = await fetch(`/api/issues/${id}/vote`, { 
+      const docRef = doc(db, "complaints", id);
+      const currentIssue = issues.find(i => i.id === id);
+      if (!currentIssue) return;
+
+      const incrementValue = currentIssue.upvotedByUser ? -1 : 1;
+      await updateDoc(docRef, {
+        verificationCount: increment(incrementValue),
+        upvotedByUser: !currentIssue.upvotedByUser
+      });
+      console.log(`[COMPLAINT-SYNC] Vote count updated in Firestore for complaint: ${id}`);
+
+      // Notify the backend
+      await fetch(`/api/issues/${id}/vote`, { 
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`
         }
       });
-      if (res.ok) {
-        const updatedIssue = await res.json();
-        setIssues(prev => prev.map(i => i.id === id ? updatedIssue : i));
-        
-        const analyticsRes = await fetch("/api/analytics");
-        setAnalytics(await analyticsRes.json());
-      }
     } catch (err) {
       console.error("Vote action failed:", err);
     }
@@ -143,7 +259,38 @@ export default function App() {
   // Handler: Status transitions & assignments with proper headers
   const handleUpdateStatus = async (id: string, status: Issue["status"], team?: string) => {
     try {
-      const res = await fetch(`/api/issues/${id}/status`, {
+      const docRef = doc(db, "complaints", id);
+      const currentIssue = issues.find(i => i.id === id);
+      if (!currentIssue) return;
+
+      // Construct dynamic timeline update
+      const newTimelineEvent = {
+        id: "tl-" + Math.random().toString(36).substr(2, 9),
+        status,
+        title: status === "Assigned" ? `Team Dispatched: ${team}` : `Status Updated: ${status}`,
+        description: status === "Assigned" 
+          ? `Assigned to ${team} and status set to Assigned.`
+          : `Municipal authorities changed status to ${status}.`,
+        timestamp: new Date().toISOString()
+      };
+
+      const updatedFields: any = {
+        status: status,
+        assignedAuthority: team || currentIssue.assignedTeam || "",
+        assignedTeam: team || currentIssue.assignedTeam || "",
+        timeline: arrayUnion(newTimelineEvent)
+      };
+
+      if (status === "Resolved") {
+        updatedFields.resolvedAt = new Date().toISOString();
+        updatedFields.resolutionNotes = "Resolved by Municipal Authority";
+      }
+
+      await updateDoc(docRef, updatedFields);
+      console.log(`[COMPLAINT-SYNC] Status updated to ${status} in Firestore for complaint: ${id}`);
+
+      // Notify the backend
+      await fetch(`/api/issues/${id}/status`, {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
@@ -151,15 +298,9 @@ export default function App() {
         },
         body: JSON.stringify({ status, assignedTeam: team })
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setIssues(prev => prev.map(i => i.id === id ? updated : i));
-        
-        const leaderboardRes = await fetch("/api/leaderboard");
-        setLeaderboard(await leaderboardRes.json());
-        const analyticsRes = await fetch("/api/analytics");
-        setAnalytics(await analyticsRes.json());
-      }
+      
+      const leaderboardRes = await fetch("/api/leaderboard");
+      setLeaderboard(await leaderboardRes.json());
     } catch (err) {
       console.error("Authority action failed:", err);
     }
@@ -619,17 +760,32 @@ export default function App() {
                                         e.preventDefault();
                                         const form = e.currentTarget;
                                         const textInput = form.elements.namedItem("commentText") as HTMLInputElement;
-                                        if (textInput.value.trim()) {
-                                          fetch(`/api/issues/${selectedIssue.id}/comment`, {
-                                            method: "POST",
-                                            headers: { 
-                                              "Content-Type": "application/json",
-                                              "Authorization": `Bearer ${token}`
-                                            },
-                                            body: JSON.stringify({ author: currentUsername, text: textInput.value })
-                                          }).then(res => res.json()).then(updated => {
-                                            setIssues(prev => prev.map(i => i.id === selectedIssue.id ? updated : i));
+                                        const commentVal = textInput.value.trim();
+                                        if (commentVal && selectedIssue) {
+                                          const newComment = {
+                                            id: "comm-" + Math.random().toString(36).substr(2, 9),
+                                            author: currentUsername,
+                                            text: commentVal,
+                                            createdAt: new Date().toISOString()
+                                          };
+                                          
+                                          const docRef = doc(db, "complaints", selectedIssue.id);
+                                          updateDoc(docRef, {
+                                            comments: arrayUnion(newComment)
+                                          }).then(() => {
+                                            console.log("[COMPLAINT-SYNC] Comment added to Firestore.");
+                                            // Notify backend
+                                            fetch(`/api/issues/${selectedIssue.id}/comment`, {
+                                              method: "POST",
+                                              headers: { 
+                                                "Content-Type": "application/json",
+                                                "Authorization": `Bearer ${token}`
+                                              },
+                                              body: JSON.stringify({ author: currentUsername, text: commentVal })
+                                            });
                                             textInput.value = "";
+                                          }).catch(err => {
+                                            console.error("Comment submit failed:", err);
                                           });
                                         }
                                       }}

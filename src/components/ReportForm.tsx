@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { Upload, Camera, Sparkles, MapPin, AlertCircle, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 import { Issue } from "../types";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import { useAuth } from "./AuthContext";
 
 // High fidelity preset image placeholders representing common civil issues to make testing direct & beautiful!
 const TEST_PHOTO_PRESETS = [
@@ -45,6 +48,7 @@ export default function ReportForm({
   onClearCoords,
   currentUsername
 }: ReportFormProps) {
+  const { user } = useAuth();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("Potholes");
@@ -103,6 +107,43 @@ export default function ReportForm({
       }
 
       const reportedIssue = await response.json();
+
+      // Store in Firestore
+      const complaintDoc = {
+        complaintId: reportedIssue.id,
+        title: reportedIssue.title,
+        description: reportedIssue.description,
+        category: reportedIssue.category,
+        severity: reportedIssue.urgency || "Medium",
+        status: reportedIssue.status || "Reported",
+        location: reportedIssue.address || `Near Block Coordinates: (${reportedIssue.latitude.toFixed(4)}, ${reportedIssue.longitude.toFixed(4)})`,
+        latitude: reportedIssue.latitude,
+        longitude: reportedIssue.longitude,
+        imageUrl: reportedIssue.image || "",
+        createdBy: reportedIssue.reporterName || currentUsername,
+        createdByEmail: user?.email || "anonymous@metroheights.gov",
+        createdAt: reportedIssue.createdAt || new Date().toISOString(),
+        assignedAuthority: reportedIssue.assignedTeam || "",
+        verificationCount: reportedIssue.upvotes || 1,
+        // Frontend support fields
+        reporterReputation: reportedIssue.reporterReputation || 100,
+        reporterBadge: reportedIssue.reporterBadge || "Watchful Neighbor",
+        comments: reportedIssue.comments || [],
+        timeline: reportedIssue.timeline || [],
+        duplicateOfId: reportedIssue.duplicateOfId || null,
+        duplicateChecked: reportedIssue.duplicateChecked || true,
+        duplicateReason: reportedIssue.duplicateReason || "",
+        recommendation: reportedIssue.recommendation || ""
+      };
+
+      try {
+        await setDoc(doc(db, "complaints", reportedIssue.id), complaintDoc);
+        console.log(`[COMPLAINT-SYNC] New user created complaint ${reportedIssue.id} in Firestore.`);
+      } catch (fErr: any) {
+        console.error("Firestore write failed:", fErr);
+        throw new Error(`Failed to write to Firestore: ${fErr.message || fErr}`);
+      }
+
       setReportResult(reportedIssue);
       onIssueReported(reportedIssue);
       

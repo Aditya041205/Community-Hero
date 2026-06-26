@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const userDocRef = doc(db, "users", firebaseUser.uid);
           const userDocSnap = await getDoc(userDocRef);
           
-          let role = "citizen";
+          let role = "";
           const displayName = firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Civic Connect User";
           const photoURL = firebaseUser.photoURL || "";
           
@@ -82,21 +82,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               createdAt: serverTimestamp(),
               lastLoginAt: serverTimestamp()
             });
-            console.log(`[AUTH-CLIENT] First login. Firestore user profile created with role: ${role}`);
+            console.log(`[AUTH-CLIENT] New user created with role: ${role}`);
           } else {
-            // Subsequent logins: Do NOT overwrite the existing role. Use the stored role.
+            // Subsequent logins: Do NOT overwrite the existing role. Load the stored role.
             const existingData = userDocSnap.data();
-            role = existingData?.role || "citizen";
+            role = existingData && existingData.role ? existingData.role : "citizen";
             
+            console.log(`[AUTH-CLIENT] Existing user found: ${firebaseUser.email}`);
+            console.log(`[AUTH-CLIENT] Existing role loaded: ${role}`);
+            
+            // Update only displayName, photoURL, lastLoginAt so existing fields are preserved
             await setDoc(userDocRef, {
-              uid: firebaseUser.uid,
               displayName,
-              email: firebaseUser.email || "",
               photoURL,
-              role,
               lastLoginAt: serverTimestamp()
             }, { merge: true });
-            console.log(`[AUTH-CLIENT] Subsequent login. Firestore user profile lastLoginAt updated. Stored role: ${role}`);
+            console.log("[AUTH-CLIENT] Firestore user profile lastLoginAt updated.");
           }
           
           // Obtain client Firebase ID Token

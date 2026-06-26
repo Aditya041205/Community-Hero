@@ -3,6 +3,8 @@ import { Shield, Check, HelpCircle, Eye, CornerDownRight, Upload, Image, AlertCi
 import { Issue } from "../types";
 import { useAuth } from "./AuthContext";
 import { motion, AnimatePresence } from "motion/react";
+import { doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { db } from "../lib/firebase";
 
 interface AuthorityPanelProps {
   issues: Issue[];
@@ -127,6 +129,29 @@ export default function AuthorityPanel({
       });
 
       if (res.ok) {
+        // Update Firestore directly so it persists and syncs in real-time
+        try {
+          const docRef = doc(db, "complaints", selectedIssueId);
+          const newTimelineEvent = {
+            id: "tl-" + Math.random().toString(36).substr(2, 9),
+            status: "Resolved" as const,
+            title: "Complaint Resolved",
+            description: resNotes || "Municipal authorities successfully resolved this issue and provided certification.",
+            timestamp: new Date().toISOString()
+          };
+
+          await updateDoc(docRef, {
+            status: "Resolved",
+            resolvedAt: new Date().toISOString(),
+            resolutionNotes: resNotes || "Resolved by Municipal Authority",
+            resolutionProofImage: proofImage || "",
+            timeline: arrayUnion(newTimelineEvent)
+          });
+          console.log("[COMPLAINT-SYNC] Successfully resolved complaint in Firestore:", selectedIssueId);
+        } catch (fErr: any) {
+          console.error("Firestore resolution save failed:", fErr);
+        }
+
         setResSuccess(true);
         setResNotes("");
         setProofImage(null);
