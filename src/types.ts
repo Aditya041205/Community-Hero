@@ -26,6 +26,7 @@ export interface Issue {
   status: "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed";
   assignedTeam?: string;
   reporterName: string;
+  reporterEmail?: string;
   reporterReputation: number;
   reporterBadge: string;
   upvotes: number;
@@ -40,6 +41,7 @@ export interface Issue {
   recommendation?: string;
   createdAt: string;
   resolvedAt?: string;
+  completedBy?: string;
   assignedAuthorityEmail?: string;
   resolutionNotes?: string;
   resolutionProofImage?: string;

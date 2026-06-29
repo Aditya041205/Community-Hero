@@ -14,6 +14,7 @@ import LeaderboardGamification from "./components/LeaderboardGamification";
 import PresentationDeck from "./components/PresentationDeck";
 import AdminPanel from "./components/AdminPanel";
 import IssueTimeline from "./components/IssueTimeline";
+import ResolvedComplaintsPage from "./components/ResolvedComplaintsPage";
 import { useAuth } from "./components/AuthContext";
 import AuthPage from "./components/AuthPage";
 import AccessDenied from "./components/AccessDenied";
@@ -96,6 +97,7 @@ export default function App() {
           urgency: data.severity || "Medium",
           status: data.status || "Reported",
           reporterName: data.createdBy || "Anonymous Hero",
+          reporterEmail: data.createdByEmail || undefined,
           reporterReputation: data.reporterReputation || 100,
           reporterBadge: data.reporterBadge || "Watchful Neighbor",
           upvotes: data.verificationCount || 1,
@@ -120,6 +122,7 @@ export default function App() {
           assignedAuthorityEmail: data.assignedAuthority || "",
           assignedTeam: data.assignedTeam || data.assignedAuthority || "",
           resolvedAt: data.resolvedAt || undefined,
+          completedBy: data.completedBy || undefined,
           resolutionNotes: data.resolutionNotes || undefined,
           resolutionProofImage: data.resolutionProofImage || undefined
         };
@@ -598,6 +601,19 @@ export default function App() {
                     </button>
                   )}
 
+                  {/* Resolved Issues link (All) */}
+                  <button
+                    onClick={() => navigate("/resolved")}
+                    className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center space-x-2.5 transition cursor-pointer ${
+                      currentPath === "/resolved" 
+                        ? "bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20" 
+                        : "text-slate-450 hover:text-slate-200 hover:bg-white/5"
+                    }`}
+                  >
+                    <ShieldCheck size={14} className={currentPath === "/resolved" ? "text-emerald-400" : ""} />
+                    <span>{user.role === "citizen" ? "✅ My Resolved Complaints" : "✅ Resolved Complaints"}</span>
+                  </button>
+
                   {/* Admin root portal link (Admin only) */}
                   {user.role === "admin" && (
                     <button
@@ -664,7 +680,7 @@ export default function App() {
                       {dashboardTab === "map" && (
                         <div className="grid grid-cols-1 md:grid-cols-1 gap-5">
                           <InteractiveMap
-                            issues={issues}
+                            issues={issues.filter(i => i.status !== "Resolved" && i.status !== "Closed")}
                             selectedIssueId={selectedIssueId}
                             onSelectIssueId={setSelectedIssueId}
                             onMapClick={handleMapClick}
@@ -923,6 +939,22 @@ export default function App() {
                         issues={issues} 
                         onUpdateIssueStatus={handleUpdateStatus} 
                         onRefreshData={fetchAllData} 
+                      />
+                    </motion.div>
+                  )}
+
+                  {/* Route: Resolved Complaints */}
+                  {currentPath === "/resolved" && (
+                    <motion.div
+                      key="resolved"
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                    >
+                      <ResolvedComplaintsPage 
+                        onViewOnMap={(lat, lng) => {
+                          window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank");
+                        }} 
                       />
                     </motion.div>
                   )}

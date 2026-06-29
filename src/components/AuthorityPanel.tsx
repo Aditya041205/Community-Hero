@@ -129,9 +129,9 @@ export default function AuthorityPanel({
       await updateDoc(docRef, {
         status: "Resolved",
         resolvedAt: new Date().toISOString(),
+        completedBy: user?.name || user?.email || "Authority",
         resolutionNotes: resNotes || "Resolved by Municipal Authority",
-        resolutionProofImage: proofImage || "",
-        timeline: arrayUnion(newTimelineEvent)
+        resolutionProofImage: proofImage || ""
       });
       console.log("[COMPLAINT-SYNC] Successfully resolved complaint in Firestore:", selectedIssueId);
 

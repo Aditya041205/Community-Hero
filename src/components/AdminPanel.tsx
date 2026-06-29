@@ -595,7 +595,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                   </div>
 
                   <div className="divide-y divide-white/5 max-h-[380px] overflow-y-auto">
-                    {issues.map(issue => (
+                    {issues.filter(i => i.status !== "Resolved" && i.status !== "Closed").map(issue => (
                       <div key={issue.id} className="grid grid-cols-12 p-3 items-center hover:bg-white/2 transition">
                         <div className="col-span-4 pr-3">
                           <span className="font-bold text-white block truncate">{issue.title}</span>
