@@ -63,26 +63,33 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
 
     const usersColRef = collection(db, "users");
     const unsubscribe = onSnapshot(usersColRef, (snapshot) => {
-      const usersList: UserProfile[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        usersList.push({
-          id: docSnap.id,
-          uid: data.uid || docSnap.id,
-          name: data.displayName || data.name || "Civic Connect User",
-          email: data.email || "",
-          role: data.role || "citizen",
-          avatarUrl: data.photoURL || "",
-          points: data.points || 0,
-          badge: data.badge || "Civic Novice",
-          reputation: data.reputation || 0,
-          joinedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
-          lastLoginAt: data.lastLoginAt ? (data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt) : new Date().toISOString(),
-          isBlocked: !!data.isBlocked
+      try {
+        const usersList: UserProfile[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (!data) return;
+          usersList.push({
+            id: docSnap.id,
+            uid: data.uid || docSnap.id,
+            name: data.displayName || data.name || "Civic Connect User",
+            email: data.email || "",
+            role: data.role || "citizen",
+            avatarUrl: data.photoURL || "",
+            points: data.points || 0,
+            badge: data.badge || "Civic Novice",
+            reputation: data.reputation || 0,
+            joinedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : String(data.createdAt)) : new Date().toISOString(),
+            lastLoginAt: data.lastLoginAt ? (data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : String(data.lastLoginAt)) : new Date().toISOString(),
+            isBlocked: !!data.isBlocked
+          });
         });
-      });
-      setUsers(usersList);
-      setLoading(false);
+        setUsers(usersList);
+        setLoading(false);
+      } catch (err) {
+        console.error("Error processing user snapshot:", err);
+        setError("Error processing user data updates.");
+        setLoading(false);
+      }
     }, (err) => {
       console.error("Firestore users realtime subscription failed:", err);
       setError("Failed to listen to realtime user directory updates.");
@@ -210,11 +217,14 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
   };
 
   // Stats calculations
-  const totalUsers = users.length;
-  const totalCitizens = users.filter(u => u.role === "citizen").length;
-  const totalAuthorities = users.filter(u => u.role === "authority").length;
-  const totalAdmins = users.filter(u => u.role === "admin").length;
-  const blockedUsersCount = users.filter(u => u.isBlocked).length;
+  const safeUsers = users ?? [];
+  const safeIssues = issues ?? [];
+
+  const totalUsers = safeUsers.length;
+  const totalCitizens = safeUsers.filter(u => u?.role === "citizen").length;
+  const totalAuthorities = safeUsers.filter(u => u?.role === "authority").length;
+  const totalAdmins = safeUsers.filter(u => u?.role === "admin").length;
+  const blockedUsersCount = safeUsers.filter(u => u?.isBlocked).length;
 
   const authoritySquads = [
     "Midtown Road Paving Crew B",
@@ -346,25 +356,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                     <div className="text-[11px] text-slate-400 mt-1 font-mono flex items-center gap-2">
                       <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                       <span>Total Authenticated Users:</span>
-                      <span className="text-indigo-400 font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{users.length}</span>
+                      <span className="text-indigo-400 font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">{safeUsers.length}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
-                    <button
-                      onClick={handleSyncFirebaseUsers}
-                      disabled={updatingId === "sync-button"}
-                      className="px-3 py-1.5 bg-indigo-600/25 hover:bg-indigo-600/40 border border-indigo-500/35 rounded-lg text-[10px] font-mono text-indigo-200 flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition-all duration-200"
-                    >
-                      <RefreshCw size={11} className={updatingId === "sync-button" ? "animate-spin" : ""} />
-                      <span>SYNC FIREBASE USERS</span>
-                    </button>
-                    <button
-                      onClick={fetchUsers}
-                      className="px-2.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-[10px] font-mono text-slate-300 flex items-center gap-1 cursor-pointer transition-all duration-200"
-                    >
-                      <RefreshCw size={11} />
-                      <span>FORCE RETRIEVE</span>
-                    </button>
                   </div>
                 </div>
 
@@ -379,8 +372,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {users.map((u) => (
-                      <tr key={u.id} className="hover:bg-white/2 transition">
+                    {safeUsers.filter(Boolean).map((u) => (
+                      <tr key={u?.id || Math.random()} className="hover:bg-white/2 transition">
                         <td className="py-3 pl-2">
                           <div className="font-semibold text-white">{u.name}</div>
                           <div className="text-[10px] text-slate-400 mt-0.5">{u.email}</div>
@@ -501,8 +494,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  {users.filter(u => u.role === "authority").map((auth) => (
-                    <div key={auth.id} className="bg-slate-950/25 border border-white/5 rounded-2xl p-4 flex flex-col justify-between hover:border-white/10 transition">
+                  {safeUsers.filter(Boolean).filter(u => u?.role === "authority").map((auth) => (
+                    <div key={auth?.id || Math.random()} className="bg-slate-950/25 border border-white/5 rounded-2xl p-4 flex flex-col justify-between hover:border-white/10 transition">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center space-x-3">
                           <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
@@ -561,7 +554,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                     </div>
                   ))}
 
-                  {users.filter(u => u.role === "authority").length === 0 && (
+                  {safeUsers.filter(u => u?.role === "authority").length === 0 && (
                     <div className="col-span-2 text-center py-12 bg-slate-950/10 border border-dashed border-white/5 rounded-2xl text-slate-500">
                       <Shield size={24} className="mx-auto mb-2 text-slate-600" />
                       <p className="text-xs">No city officials registered yet. Create one to assign dispatcher tasks!</p>
@@ -595,8 +588,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                   </div>
 
                   <div className="divide-y divide-white/5 max-h-[380px] overflow-y-auto">
-                    {issues.filter(i => i.status !== "Resolved" && i.status !== "Closed").map(issue => (
-                      <div key={issue.id} className="grid grid-cols-12 p-3 items-center hover:bg-white/2 transition">
+                    {safeIssues.filter(Boolean).filter(i => i?.status !== "Resolved" && i?.status !== "Closed").map(issue => (
+                      <div key={issue?.id || Math.random()} className="grid grid-cols-12 p-3 items-center hover:bg-white/2 transition">
                         <div className="col-span-4 pr-3">
                           <span className="font-bold text-white block truncate">{issue.title}</span>
                           <span className="text-[10px] text-slate-400 block font-mono mt-0.5">{issue.address}</span>
@@ -672,7 +665,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                       </div>
                     ))}
 
-                    {issues.length === 0 && (
+                    {safeIssues.length === 0 && (
                       <p className="text-center text-slate-500 italic py-12">No complaint tickets logged on the platform currently.</p>
                     )}
                   </div>

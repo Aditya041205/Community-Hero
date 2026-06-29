@@ -22,6 +22,35 @@ import { Issue, LeaderboardEntry, AnalyticsData } from "./types";
 import { collection, onSnapshot, query, doc, setDoc, updateDoc, arrayUnion, increment } from "firebase/firestore";
 import { db } from "./lib/firebase";
 
+class AdminErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error("ADMIN PANEL ERROR", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 bg-red-950 border border-red-500 rounded-xl text-white">
+          <h2 className="text-xl font-bold text-red-400 mb-2">AdminPanel Error</h2>
+          <pre className="whitespace-pre-wrap font-mono text-sm">{this.state.error?.toString()}</pre>
+          <pre className="whitespace-pre-wrap font-mono text-xs text-red-300 mt-4">{this.state.error?.stack}</pre>
+          <button onClick={() => this.setState({ hasError: false })} className="mt-4 px-4 py-2 bg-red-600 rounded">Retry</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const { user, token, logout, loading } = useAuth();
 
@@ -935,11 +964,13 @@ export default function App() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -5 }}
                     >
-                      <AdminPanel 
-                        issues={issues} 
-                        onUpdateIssueStatus={handleUpdateStatus} 
-                        onRefreshData={fetchAllData} 
-                      />
+                      <AdminErrorBoundary>
+                        <AdminPanel 
+                          issues={issues} 
+                          onUpdateIssueStatus={handleUpdateStatus} 
+                          onRefreshData={fetchAllData} 
+                        />
+                      </AdminErrorBoundary>
                     </motion.div>
                   )}
 
