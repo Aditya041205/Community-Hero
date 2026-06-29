@@ -116,63 +116,43 @@ export default function AuthorityPanel({
     setResSuccess(false);
 
     try {
-      const res = await fetch(`/api/issues/${selectedIssueId}/resolve`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          resolutionNotes: resNotes,
-          resolutionProofImage: proofImage
-        })
+      // Update Firestore directly so it persists and syncs in real-time
+      const docRef = doc(db, "complaints", selectedIssueId);
+      const newTimelineEvent = {
+        id: "tl-" + Math.random().toString(36).substr(2, 9),
+        status: "Resolved" as const,
+        title: "Complaint Resolved",
+        description: resNotes || "Municipal authorities successfully resolved this issue and provided certification.",
+        timestamp: new Date().toISOString()
+      };
+
+      await updateDoc(docRef, {
+        status: "Resolved",
+        resolvedAt: new Date().toISOString(),
+        resolutionNotes: resNotes || "Resolved by Municipal Authority",
+        resolutionProofImage: proofImage || "",
+        timeline: arrayUnion(newTimelineEvent)
       });
+      console.log("[COMPLAINT-SYNC] Successfully resolved complaint in Firestore:", selectedIssueId);
 
-      if (res.ok) {
-        // Update Firestore directly so it persists and syncs in real-time
-        try {
-          const docRef = doc(db, "complaints", selectedIssueId);
-          const newTimelineEvent = {
-            id: "tl-" + Math.random().toString(36).substr(2, 9),
-            status: "Resolved" as const,
-            title: "Complaint Resolved",
-            description: resNotes || "Municipal authorities successfully resolved this issue and provided certification.",
-            timestamp: new Date().toISOString()
-          };
-
-          await updateDoc(docRef, {
-            status: "Resolved",
-            resolvedAt: new Date().toISOString(),
-            resolutionNotes: resNotes || "Resolved by Municipal Authority",
-            resolutionProofImage: proofImage || "",
-            timeline: arrayUnion(newTimelineEvent)
-          });
-          console.log("[COMPLAINT-SYNC] Successfully resolved complaint in Firestore:", selectedIssueId);
-        } catch (fErr: any) {
-          console.error("Firestore resolution save failed:", fErr);
-        }
-
-        setResSuccess(true);
-        setResNotes("");
-        setProofImage(null);
-        
-        // Let main App component know to update
-        if (onRefreshData) {
-          onRefreshData();
-        } else {
-          // Fallback status updater
-          onUpdateIssueStatus(selectedIssueId, "Resolved", selectedIssue?.assignedTeam);
-        }
-
-        setTimeout(() => {
-          setResSuccess(false);
-          onSelectIssueId(null);
-        }, 2000);
+      setResSuccess(true);
+      setResNotes("");
+      setProofImage(null);
+      
+      // Let main App component know to update
+      if (onRefreshData) {
+        onRefreshData();
       } else {
-        const errData = await res.json();
-        setResError(errData.error || "Failed to submit resolution logs.");
+        // Fallback status updater
+        onUpdateIssueStatus(selectedIssueId, "Resolved", selectedIssue?.assignedTeam);
       }
+
+      setTimeout(() => {
+        setResSuccess(false);
+        onSelectIssueId(null);
+      }, 2000);
     } catch (err) {
+      console.error("Firestore resolution save failed:", err);
       setResError("Network error sending resolution details.");
     } finally {
       setSavingResolution(false);

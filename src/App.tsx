@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen, LogOut, ShieldCheck, Clipboard, Shield, BarChart3, Trophy, Key, RefreshCw, Share2, Sparkles, X, Download
+  ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen, LogOut, ShieldCheck, Clipboard, Shield, BarChart3, Trophy, Key, RefreshCw, Share2, Sparkles, X, Download, Link
 } from "lucide-react";
 import jsPDF from "jspdf";
 
@@ -40,6 +40,7 @@ export default function App() {
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [inspectorTab, setInspectorTab] = useState<"overview" | "timeline" | "comments">("overview");
   const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [aiAnalysisResult, setAiAnalysisResult] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [clickedCoords, setClickedCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -130,7 +131,29 @@ export default function App() {
       console.error("[COMPLAINT-SYNC] Firestore onSnapshot error:", err);
     });
 
-    return () => unsubscribe();
+      // Fetch users for leaderboard
+      const usersUnsubscribe = onSnapshot(collection(db, "users"), (snapshot) => {
+        const usersList: any[] = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          usersList.push({
+            id: docSnap.id,
+            name: data.name || docSnap.id,
+            points: data.points || 0,
+            badge: data.badge || "Civic Novice",
+            issuesReported: data.issuesReported || 0,
+            issuesResolved: data.issuesResolved || 0
+          });
+        });
+        // Sort by points
+        usersList.sort((a, b) => b.points - a.points);
+        setLeaderboard(usersList);
+      });
+
+      return () => {
+        unsubscribe();
+        usersUnsubscribe();
+      };
   }, [user]);
 
   // Dynamically compute and sync analytics whenever issues update
@@ -195,30 +218,10 @@ export default function App() {
     setAnalytics(computeAnalytics(issues));
   }, [issues]);
 
-  // Fetch only leaderboard metadata
-  const fetchAllData = async () => {
-    try {
-      const leaderboardRes = await fetch("/api/leaderboard");
-      const leaderboardData = await leaderboardRes.json();
-      setLeaderboard(leaderboardData);
-      
-      // Reset error count on successful fetch
-      fetchErrorCountRef.current = 0;
-    } catch (err) {
-      fetchErrorCountRef.current += 1;
-      if (fetchErrorCountRef.current > 3) {
-        console.error("Failed to fetch leaderboard state:", err);
-      }
-    }
+  const fetchAllData = () => {
+    // Left empty since everything is now real-time from Firestore
   };
 
-  useEffect(() => {
-    fetchAllData();
-    const interval = setInterval(fetchAllData, 10000);
-    return () => clearInterval(interval);
-  }, [currentUsername]);
-
-  // Redirect users to their home dashboard after login
   useEffect(() => {
     if (user) {
       const path = window.location.pathname;
@@ -245,18 +248,9 @@ export default function App() {
 
       const incrementValue = currentIssue.upvotedByUser ? -1 : 1;
       await updateDoc(docRef, {
-        verificationCount: increment(incrementValue),
-        upvotedByUser: !currentIssue.upvotedByUser
+        verificationCount: increment(incrementValue)
       });
       console.log(`[COMPLAINT-SYNC] Vote count updated in Firestore for complaint: ${id}`);
-
-      // Notify the backend
-      await fetch(`/api/issues/${id}/vote`, { 
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
     } catch (err) {
       console.error("Vote action failed:", err);
     } finally {
@@ -288,21 +282,7 @@ export default function App() {
   };
 
   const handleShare = () => {
-    const selectedIssue = issues.find(i => i.id === selectedIssueId);
-    if (!selectedIssue) return;
-    const url = window.location.origin + window.location.pathname;
-    const text = `Check out this civic issue: ${selectedIssue.title} (${selectedIssue.status})`;
-    
-    if (navigator.share) {
-      navigator.share({
-        title: selectedIssue.title,
-        text: text,
-        url: url
-      }).catch(err => console.log("Share failed", err));
-    } else {
-      navigator.clipboard.writeText(`${text}\n${url}`);
-      alert("Link copied to clipboard!");
-    }
+    setShareModalOpen(true);
   };
 
   const handleTestAIFeatures = async () => {
@@ -362,19 +342,6 @@ export default function App() {
 
       await updateDoc(docRef, updatedFields);
       console.log(`[COMPLAINT-SYNC] Status updated to ${status} in Firestore for complaint: ${id}`);
-
-      // Notify the backend
-      await fetch(`/api/issues/${id}/status`, {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ status, assignedTeam: team })
-      });
-      
-      const leaderboardRes = await fetch("/api/leaderboard");
-      setLeaderboard(await leaderboardRes.json());
     } catch (err) {
       console.error("Authority action failed:", err);
       throw err;
@@ -862,15 +829,6 @@ export default function App() {
                                             comments: arrayUnion(newComment)
                                           }).then(() => {
                                             console.log("[COMPLAINT-SYNC] Comment added to Firestore.");
-                                            // Notify backend
-                                            fetch(`/api/issues/${selectedIssue.id}/comment`, {
-                                              method: "POST",
-                                              headers: { 
-                                                "Content-Type": "application/json",
-                                                "Authorization": `Bearer ${token}`
-                                              },
-                                              body: JSON.stringify({ author: currentUsername, text: commentVal })
-                                            });
                                             textInput.value = "";
                                           }).catch(err => {
                                             console.error("Comment submit failed:", err);
@@ -1031,6 +989,83 @@ export default function App() {
                       <span>{isAnalyzing ? "Analyzing Issue..." : "Run Analysis"}</span>
                     </button>
                   )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {shareModalOpen && selectedIssue && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              className="bg-slate-900 border border-white/10 rounded-3xl p-6 w-full max-w-sm shadow-2xl relative"
+            >
+              <button 
+                onClick={() => setShareModalOpen(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+              
+              <div className="flex items-center space-x-3 mb-5">
+                <div className="p-2.5 bg-blue-500/20 rounded-xl text-blue-400">
+                  <Share2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white font-display">Share Issue</h3>
+                  <p className="text-xs text-slate-400">Spread the word</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <button
+                  onClick={() => {
+                    const url = window.location.origin + window.location.pathname;
+                    navigator.clipboard.writeText(`${url}`);
+                    alert("Link copied to clipboard!");
+                  }}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition flex items-center justify-center space-x-2"
+                >
+                  <Link size={16} />
+                  <span>Copy Link</span>
+                </button>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <a
+                    href={`https://twitter.com/intent/tweet?text=Check out this civic issue: ${selectedIssue.title}&url=${window.location.origin}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center justify-center py-3 bg-[#1DA1F2]/10 hover:bg-[#1DA1F2]/20 text-[#1DA1F2] rounded-xl transition"
+                  >
+                    <span className="font-bold">X</span>
+                  </a>
+                  <a
+                    href={`https://wa.me/?text=Check out this civic issue: ${selectedIssue.title} ${window.location.origin}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center justify-center py-3 bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] rounded-xl transition"
+                  >
+                    <span className="font-bold">WhatsApp</span>
+                  </a>
+                  <a
+                    href={`https://www.linkedin.com/sharing/share-offsite/?url=${window.location.origin}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center justify-center py-3 bg-[#0077B5]/10 hover:bg-[#0077B5]/20 text-[#0077B5] rounded-xl transition"
+                  >
+                    <span className="font-bold">LinkedIn</span>
+                  </a>
                 </div>
               </div>
             </motion.div>

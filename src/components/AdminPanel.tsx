@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { UserProfile, UserRole, Issue } from "../types";
 import { useAuth } from "./AuthContext";
 import { motion, AnimatePresence } from "motion/react";
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, getDocs, addDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { 
   Users, 
@@ -55,41 +55,6 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     notificationBroadcasting: true
   });
 
-  const fetchUsers = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const usersColRef = collection(db, "users");
-      const snapshot = await getDocs(usersColRef);
-      const usersList: UserProfile[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        usersList.push({
-          id: docSnap.id,
-          uid: data.uid || docSnap.id,
-          name: data.displayName || data.name || "Civic Connect User",
-          email: data.email || "",
-          role: data.role || "citizen",
-          avatarUrl: data.photoURL || "",
-          points: data.points || 0,
-          badge: data.badge || "Civic Novice",
-          reputation: data.reputation || 0,
-          joinedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
-          lastLoginAt: data.lastLoginAt ? (data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt) : new Date().toISOString(),
-          isBlocked: !!data.isBlocked
-        });
-      });
-      setUsers(usersList);
-      setSuccess("Successfully refreshed system directory directly from Firestore.");
-      setTimeout(() => setSuccess(null), 4000);
-    } catch (err: any) {
-      console.error("Manual fetch users error:", err);
-      setError("Failed to fetch users from Firestore: " + (err.message || err));
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (!token) return;
 
@@ -127,56 +92,6 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     return () => unsubscribe();
   }, [token]);
 
-  const handleSyncFirebaseUsers = async () => {
-    setUpdatingId("sync-button");
-    setError(null);
-    setSuccess(null);
-    try {
-      const usersColRef = collection(db, "users");
-      const snapshot = await getDocs(usersColRef);
-      const usersList: UserProfile[] = [];
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        usersList.push({
-          id: docSnap.id,
-          uid: data.uid || docSnap.id,
-          name: data.displayName || data.name || "Civic Connect User",
-          email: data.email || "",
-          role: data.role || "citizen",
-          avatarUrl: data.photoURL || "",
-          points: data.points || 0,
-          badge: data.badge || "Civic Novice",
-          reputation: data.reputation || 0,
-          joinedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : new Date().toISOString(),
-          lastLoginAt: data.lastLoginAt ? (data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt) : new Date().toISOString(),
-          isBlocked: !!data.isBlocked
-        });
-      });
-      
-      // Sync cache on the Express backend
-      const syncRes = await fetch("/api/admin/sync-users-cache", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ users: usersList })
-      });
-      
-      if (syncRes.ok) {
-        setSuccess(`Successfully synchronized ${usersList.length} authenticated profiles with Firestore and local cache!`);
-      } else {
-        setSuccess(`Successfully synchronized ${usersList.length} authenticated profiles directly from Firestore.`);
-      }
-      setTimeout(() => setSuccess(null), 5000);
-    } catch (err: any) {
-      console.error("Failed to manual sync Firebase users:", err);
-      setError("Sync failed: " + (err.message || err));
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
   const handleRoleChange = async (userId: string, newRole: UserRole) => {
     setUpdatingId(userId);
     setError(null);
@@ -186,16 +101,6 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
       const userDocRef = doc(db, "users", userId);
       await updateDoc(userDocRef, { role: newRole });
       console.log("Role updated by admin");
-
-      // Also update Express backend cache
-      await fetch(`/api/admin/users/${userId}/role`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({ role: newRole })
-      });
 
       setSuccess(`Successfully updated role to ${newRole}`);
       setTimeout(() => setSuccess(null), 4000);
@@ -213,18 +118,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     setSuccess(null);
     const shouldBlock = !currentlyBlocked;
     try {
-      // Update directly in Firestore
       const userDocRef = doc(db, "users", userId);
       await updateDoc(userDocRef, { isBlocked: shouldBlock });
-
-      // Also update Express backend cache
-      const endpoint = shouldBlock ? "block" : "unblock";
-      await fetch(`/api/admin/users/${userId}/${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
 
       setSuccess(`User successfully ${shouldBlock ? "blocked" : "unblocked"}.`);
       setTimeout(() => setSuccess(null), 4000);
@@ -246,21 +141,14 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     setError(null);
     setSuccess(null);
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      });
+      // NOTE: Firebase Client SDK doesn't allow deleting arbitrary users from Authentication.
+      // We will only delete the user document from Firestore here.
+      // In a real production app, an Admin SDK Cloud Function would handle complete deletion.
+      const userDocRef = doc(db, "users", userId);
+      await deleteDoc(userDocRef);
 
-      if (res.ok) {
-        setUsers(prev => prev.filter(u => u.id !== userId));
-        setSuccess("User successfully removed from system directory.");
-        setTimeout(() => setSuccess(null), 5000);
-      } else {
-        const errData = await res.json();
-        setError(errData.error || "Failed to delete user.");
-      }
+      setSuccess("User successfully removed from system directory.");
+      setTimeout(() => setSuccess(null), 5000);
     } catch (err) {
       setError("Network error deleting user.");
     }
@@ -272,47 +160,36 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     setSuccess(null);
     
     try {
-      let res;
       if (editingAuth) {
         // Edit Mode
-        res = await fetch(`/api/admin/authorities/${editingAuth.id}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify(authForm)
+        const userDocRef = doc(db, "users", editingAuth.id);
+        await updateDoc(userDocRef, {
+          name: authForm.name,
+          email: authForm.email,
+          badge: authForm.badge
         });
+        setSuccess("Authority details updated successfully.");
       } else {
-        // Create Mode
-        res = await fetch("/api/admin/authorities", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`
-          },
-          body: JSON.stringify(authForm)
+        // Create Mode - purely in Firestore (no Auth creation for simplicity here)
+        const usersColRef = collection(db, "users");
+        await addDoc(usersColRef, {
+          name: authForm.name,
+          email: authForm.email,
+          badge: authForm.badge,
+          role: "authority",
+          points: 0,
+          reputation: 0,
+          createdAt: new Date().toISOString()
         });
+        setSuccess("New certified municipal official registered successfully.");
       }
 
-      if (res.ok) {
-        const data = await res.json();
-        if (editingAuth) {
-          setUsers(prev => prev.map(u => u.id === editingAuth.id ? data : u));
-          setSuccess("Authority details updated successfully.");
-        } else {
-          setUsers(prev => [...prev, data]);
-          setSuccess("New certified municipal official registered successfully.");
-        }
-        setAuthModalOpen(false);
-        setEditingAuth(null);
-        setAuthForm({ name: "", email: "", badge: "Chief Dispatcher" });
-      } else {
-        const errData = await res.json();
-        setError(errData.error || "Failed to save authority profile.");
-      }
-    } catch (err) {
-      setError("Network error saving authority.");
+      setAuthModalOpen(false);
+      setEditingAuth(null);
+      setAuthForm({ name: "", email: "", badge: "Chief Dispatcher" });
+    } catch (err: any) {
+      console.error("Save authority failed:", err);
+      setError("Failed to save authority profile: " + (err.message || err));
     }
   };
 

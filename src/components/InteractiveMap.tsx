@@ -238,12 +238,22 @@ export default function InteractiveMap({
   const categories = ["All", "Potholes", "Water leakage", "Garbage accumulation", "Broken streetlights", "Drainage blockage"];
   const urgencies = ["All", "Critical", "High", "Medium", "Low"];
 
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case "Critical": return "bg-red-500 ring-red-400";
-      case "High": return "bg-orange-500 ring-orange-400";
-      case "Medium": return "bg-yellow-500 ring-yellow-400";
-      default: return "bg-blue-500 ring-blue-400";
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Reported":
+      case "Pending": 
+        return "bg-red-500 ring-red-400";
+      case "Assigned": 
+        return "bg-orange-500 ring-orange-400";
+      case "In Progress":
+      case "Repair": 
+        return "bg-blue-500 ring-blue-400";
+      case "Resolved":
+      case "Completed":
+      case "Closed": 
+        return "bg-green-500 ring-green-400";
+      default: 
+        return "bg-slate-500 ring-slate-400";
     }
   };
 
@@ -397,7 +407,7 @@ export default function InteractiveMap({
                       className="relative group cursor-pointer"
                       style={{ width: '32px', height: '32px' }}
                     >
-                      <div className={`map-pin-pulse relative flex items-center justify-center h-8 w-8 rounded-full shadow-lg border transition-all duration-300 ${isSelected ? 'scale-125 z-20 border-white ring-4' : 'border-slate-800 hover:scale-115 ring-2'} ${getUrgencyColor(issue.urgency)}`}>
+                      <div className={`map-pin-pulse relative flex items-center justify-center h-8 w-8 rounded-full shadow-lg border transition-all duration-300 ${isSelected ? 'scale-125 z-20 border-white ring-4' : 'border-slate-800 hover:scale-115 ring-2'} ${getStatusColor(issue.status)}`}>
                         <span className="text-[10px] font-bold text-white uppercase text-center font-display">
                           {issue.category.substring(0, 1)}
                         </span>
@@ -617,7 +627,7 @@ export default function InteractiveMap({
                         e.stopPropagation();
                         onSelectIssueId(isSelected ? null : issue.id);
                       }}
-                      className={`map-pin-pulse relative flex items-center justify-center h-8 w-8 rounded-full shadow-lg border cursor-pointer transition-all duration-300 ${isSelected ? 'scale-125 z-20 border-white ring-4' : 'border-slate-800 hover:scale-115 ring-2'} ${getUrgencyColor(issue.urgency)}`}
+                      className={`map-pin-pulse relative flex items-center justify-center h-8 w-8 rounded-full shadow-lg border cursor-pointer transition-all duration-300 ${isSelected ? 'scale-125 z-20 border-white ring-4' : 'border-slate-800 hover:scale-115 ring-2'} ${getStatusColor(issue.status)}`}
                     >
                       {/* Microicon overlay */}
                       <span className="text-[10px] font-bold text-white uppercase text-center font-display">
