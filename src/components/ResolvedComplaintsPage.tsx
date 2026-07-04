@@ -36,7 +36,8 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
           category: data.category || "",
           latitude: data.latitude || 40.7500,
           longitude: data.longitude || -73.9800,
-          address: data.location || "",
+          location: typeof data.location === 'object' ? data.location : undefined,
+          address: data.address || (typeof data.location === 'string' ? data.location : ""),
           urgency: data.severity || "Medium",
           status: data.status || "Resolved",
           reporterName: data.createdBy || "Anonymous Hero",
@@ -397,10 +398,16 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
                     {/* Actions */}
                     <div className="pt-2">
                       <button 
-                        onClick={() => onViewOnMap(issue.latitude, issue.longitude)}
-                        className="w-full py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border border-white/10"
+                        onClick={() => {
+                          if (issue.location && issue.location.lat && issue.location.lng) {
+                            window.open(`https://www.google.com/maps?q=${issue.location.lat},${issue.location.lng}`, "_blank");
+                          }
+                        }}
+                        disabled={!issue.location || !issue.location.lat || !issue.location.lng}
+                        className="w-full py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Map size={14} /> View on Map
+                        <Map size={14} /> 
+                        {issue.location && issue.location.lat && issue.location.lng ? "View on Map" : "Location unavailable"}
                       </button>
                     </div>
                   </div>

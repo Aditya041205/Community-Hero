@@ -116,7 +116,11 @@ export default function ReportForm({
         category: reportedIssue.category,
         severity: reportedIssue.urgency || "Medium",
         status: reportedIssue.status || "Reported",
-        location: reportedIssue.address || `Near Block Coordinates: (${reportedIssue.latitude.toFixed(4)}, ${reportedIssue.longitude.toFixed(4)})`,
+        location: { 
+          lat: reportedIssue.latitude, 
+          lng: reportedIssue.longitude 
+        },
+        address: reportedIssue.address || `Near Block Coordinates: (${reportedIssue.latitude.toFixed(4)}, ${reportedIssue.longitude.toFixed(4)})`,
         latitude: reportedIssue.latitude,
         longitude: reportedIssue.longitude,
         imageUrl: reportedIssue.image || "",

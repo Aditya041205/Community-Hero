@@ -22,11 +22,8 @@ import { Issue, LeaderboardEntry, AnalyticsData } from "./types";
 import { collection, onSnapshot, query, doc, setDoc, updateDoc, arrayUnion, increment } from "firebase/firestore";
 import { db } from "./lib/firebase";
 
-class AdminErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+class AdminErrorBoundary extends React.Component<any, any> {
+  state = { hasError: false, error: null as Error | null };
 
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
@@ -37,17 +34,17 @@ class AdminErrorBoundary extends React.Component<{ children: React.ReactNode }, 
   }
 
   render() {
-    if (this.state.hasError) {
+    if ((this as any).state.hasError) {
       return (
         <div className="p-8 bg-red-950 border border-red-500 rounded-xl text-white">
           <h2 className="text-xl font-bold text-red-400 mb-2">AdminPanel Error</h2>
-          <pre className="whitespace-pre-wrap font-mono text-sm">{this.state.error?.toString()}</pre>
-          <pre className="whitespace-pre-wrap font-mono text-xs text-red-300 mt-4">{this.state.error?.stack}</pre>
-          <button onClick={() => this.setState({ hasError: false })} className="mt-4 px-4 py-2 bg-red-600 rounded">Retry</button>
+          <pre className="whitespace-pre-wrap font-mono text-sm">{(this as any).state.error?.toString()}</pre>
+          <pre className="whitespace-pre-wrap font-mono text-xs text-red-300 mt-4">{(this as any).state.error?.stack}</pre>
+          <button onClick={() => (this as any).setState({ hasError: false })} className="mt-4 px-4 py-2 bg-red-600 rounded">Retry</button>
         </div>
       );
     }
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 
@@ -122,7 +119,8 @@ export default function App() {
           category: data.category || "",
           latitude: data.latitude || 40.7500,
           longitude: data.longitude || -73.9800,
-          address: data.location || "",
+          location: typeof data.location === 'object' ? data.location : undefined,
+          address: data.address || (typeof data.location === 'string' ? data.location : ""),
           urgency: data.severity || "Medium",
           status: data.status || "Reported",
           reporterName: data.createdBy || "Anonymous Hero",
@@ -1136,7 +1134,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <Chatbot />
+      <Chatbot issues={issues} users={leaderboard} currentUser={user} stats={analytics} />
     </div>
   );
 }

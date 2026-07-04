@@ -21,6 +21,7 @@ export interface Issue {
   category: string;
   latitude: number;
   longitude: number;
+  location?: { lat: number, lng: number };
   address: string;
   urgency: "Low" | "Medium" | "High" | "Critical";
   status: "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed";

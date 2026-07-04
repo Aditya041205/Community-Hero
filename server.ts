@@ -1206,23 +1206,7 @@ function applyBackupIssueRouting(category?: string, title?: string, description?
 
 // Rule-based backup chatbot response helper if Gemini Chat fails
 function getRuleBasedChatResponse(latestMessage: string): string {
-  let response = "I'm Eco-Echo, your civic advisor! I am operating in sandbox offline mode. If you report a pothole or waste dump, I will automatically classify it, assign points, and check if it duplicates an active issue. What would you like to build or report in Metro Heights?";
-  const text = (latestMessage || "").toLowerCase();
-  
-  if (text.includes("points") || text.includes("reputation") || text.includes("earn") || text.includes("badge")) {
-    response = "You earn 50 Hero Points for every unique municipal complaint you submit with photos, and another 150 points when our works department completes the resolution! You can also check your current badges on the citizens leaderboard.";
-  } else if (text.includes("pothole") || text.includes("road") || text.includes("street")) {
-    response = "I see you are interested in Pothole Reporting. We currently have a high-priority pothole on Midtown Bus Lane (350 Fifth Ave) with 42 upvotes. Our paving team is already active there!";
-  } else if (text.includes("water") || text.includes("leak") || text.includes("pipe") || text.includes("drain") || text.includes("flood")) {
-    response = "Got water flooding? Our water engineers respond within 6 hours. Let's place a marker on the interactive map so coordinates are sent instantly to Bryant Park Hydrant team!";
-  } else if (text.includes("garbage") || text.includes("trash") || text.includes("dump") || text.includes("waste")) {
-    response = "Garbage or waste pile accumulation is routinely handled by our Eco-Clean Sanitation Squad. If you report it, we'll auto-route their garbage trucks coordinates.";
-  } else if (text.includes("light") || text.includes("broken light") || text.includes("lamp") || text.includes("electricity") || text.includes("strobe")) {
-    response = "Streetlight out are marked for safe routine replacement. When reported, standard LED diagnostic replacement tickets are created automatically!";
-  } else if (text.includes("hello") || text.includes("hi ") || text.includes("hey")) {
-    response = "Hello there! I am Eco-Echo, your personal civic assistant for Metro Heights. Feel free to ask about reporting municipal issues, earning Hero Points, or checking active tickets!";
-  }
-  return response;
+  return "I couldn't find that information.";
 }
 
 // 5. API: Submit a reported issue with integrated Gemini auto-classification
@@ -1297,7 +1281,7 @@ app.post("/api/issues/report", async (req, res) => {
       let response;
       if (image && base64Data) {
         response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-2.5-flash",
           contents: [
             {
               inlineData: {
@@ -1314,7 +1298,7 @@ app.post("/api/issues/report", async (req, res) => {
         });
       } else {
         response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-2.5-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json",
@@ -1484,7 +1468,7 @@ app.get("/api/analytics", async (req, res) => {
       Generate a concise 2-3 sentence technical prediction for next month. Detail which district is at high risk of water flooding or infrastructure failure based on these tickets, and recommend a proactive dispatch plan for the mayor's team. Keep it brief, realistic, and highly professional. Do not use markdown headers or list markers.`;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         contents: prompt,
         config: {
           temperature: 0.3,
@@ -1529,8 +1513,9 @@ app.get("/api/notifications", (req, res) => {
 
 // 9. API: Multi-turn Chat Counselor "Eco-Echo"
 app.post("/api/chat", async (req, res) => {
-  const { messages } = req.body; // Array of { role: 'user' | 'model', message: string }
-  const defaultReply = "I am Eco-Echo, your Community Hero counselor! Feel free to upload an issue image or type a complaint to get started. Make sure your GPS is on so I can pin it on the city map!";
+  const { messages, issues: clientIssues = [], users = [], currentUser = null, stats = null } = req.body; 
+
+  const defaultReply = "How can I help you today?";
 
   if (!messages || messages.length === 0) {
     return res.json({ response: defaultReply });
@@ -1543,22 +1528,45 @@ app.post("/api/chat", async (req, res) => {
     try {
       const ai = getGemini();
 
+      const complaintData = clientIssues.length > 0 ? clientIssues : issues;
+      const allUsers = users;
+
       // Formulate systemic guide
-      const systemGuide = `You are "Eco-Echo", the official AI guide for Community Hero AI.
-      Your goal is to help citizens report issues (potholes, garbage, water leaks, broken light bulbs, clogged drains).
-      Be helpful, concise, warm, and encourage civic pride!
-      Here is the list of currently reported city issues for reference:
-      ${JSON.stringify(issues.map(i => ({ title: i.title, street: i.address, urgency: i.urgency, status: i.status })))}
-      
-      Suggest to users how they can earn "Hero Points" (50 for reporting, 150 when the city resolves, upvoting others). Inform them they are currently viewing Metro Heights city map.
-      Keep answers under 3-4 sentences maximum. Be motivating like a professional PM.`;
+      const systemGuide = `You are Eco-Echo, the intelligent AI assistant for CivicConnect AI.
+Your job is to help Citizens, Authorities, and Admin users.
+
+IMPORTANT RULES
+1. Never give the same answer for every question.
+2. Always understand the user's question first.
+3. If the user asks about a complaint, search the complaint data and answer from that data.
+4. If the user asks about resolved complaints, use only resolved complaints.
+5. If the user asks about pending complaints, use only pending complaints.
+6. If the user asks about statistics, calculate them from the database.
+7. If you don't know something, clearly say: "I couldn't find that information."
+8. Never invent complaint information.
+9. Keep answers short, helpful, and conversational.
+10. Reply in markdown.
+
+Application Information
+Project Name: CivicConnect AI
+Purpose: AI-powered civic complaint reporting and management platform.
+
+Roles:
+Citizen: Report complaints, Upload photos, Track complaint status, Earn Hero Points, View map, Chat with AI.
+Authority: Verify complaints, Start repair, Deploy crew, Complete resolution, Upload proof image.
+Admin: Manage users, Assign authorities, Change roles, View analytics, Export reports, View resolved archive.
+
+Complaint Status: Pending, Assigned, Verified, Repair Started, Resolved
+Complaint Categories: Potholes, Garbage, Water Leakage, Broken Streetlight, Drainage, Road Damage, Illegal Dumping, Public Facility Damage
+
+Remember: Always answer based on available complaint data. Never repeat fixed responses.`;
 
       // Format messages in required structure of chat sendMessage
       const chat = ai.chats.create({
-        model: "gemini-3.5-flash",
+        model: "gemini-2.5-flash",
         config: {
           systemInstruction: systemGuide,
-          temperature: 0.7,
+          temperature: 0.1,
         }
       });
 
@@ -1567,7 +1575,22 @@ app.post("/api/chat", async (req, res) => {
       for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
         if (i === messages.length - 1) {
-          apiResult = await chat.sendMessage({ message: msg.message });
+          const contextPrompt = `
+Current User:
+${JSON.stringify(currentUser)}
+
+Complaints:
+${JSON.stringify(complaintData)}
+
+Users (includes Citizens, Authorities, Admins):
+${JSON.stringify(allUsers)}
+
+Statistics:
+${JSON.stringify(stats)}
+
+User Question:
+${msg.message}`;
+          apiResult = await chat.sendMessage({ message: contextPrompt });
         } else {
           await chat.sendMessage({ message: msg.message });
         }
@@ -1576,6 +1599,7 @@ app.post("/api/chat", async (req, res) => {
       res.json({ response: apiResult ? apiResult.text : defaultReply });
 
     } catch (err) {
+      console.error("Gemini API Error in /api/chat:", err);
       console.log("Chat rule-based fallback used.");
       res.json({ response: getRuleBasedChatResponse(latestMessage) });
     }

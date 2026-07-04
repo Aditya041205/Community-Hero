@@ -1,0 +1,58 @@
+[
+  {
+    "id": "u-1",
+    "name": "Elena Rostova",
+    "points": 1540,
+    "badge": "City Architect",
+    "issuesReported": 18,
+    "issuesResolved": 12
+  },
+  {
+    "id": "u-2",
+    "name": "Marcus Vance",
+    "points": 1120,
+    "badge": "Pothole Patrol",
+    "issuesReported": 14,
+    "issuesResolved": 9
+  },
+  {
+    "id": "u-3",
+    "name": "Julian Vance",
+    "points": 890,
+    "badge": "Pothole Patrol",
+    "issuesReported": 10,
+    "issuesResolved": 7
+  },
+  {
+    "id": "u-4",
+    "name": "Maya Lin",
+    "points": 760,
+    "badge": "Green Guardian",
+    "issuesReported": 8,
+    "issuesResolved": 6
+  },
+  {
+    "id": "u-5",
+    "name": "Sarah Connor",
+    "points": 510,
+    "badge": "Watchful Neighbor",
+    "issuesReported": 5,
+    "issuesResolved": 3
+  },
+  {
+    "id": "S1wkMxEsW6fdJbldMmCwoTJLXH93",
+    "name": "Aditya Sharma",
+    "points": 100,
+    "badge": "City Admin",
+    "issuesReported": 0,
+    "issuesResolved": 0
+  },
+  {
+    "id": "u-wopp43p4b",
+    "name": "Tester",
+    "points": 100,
+    "badge": "Watchful Neighbor",
+    "issuesReported": 1,
+    "issuesResolved": 0
+  }
+]

@@ -1,20 +1,23 @@
 import React, { useState, useRef, useEffect } from "react";
 import { MessageSquare, Send, X, RefreshCw, User, HelpCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { Issue } from "../types";
 
 interface Message {
   role: "user" | "model";
   message: string;
 }
 
-export default function Chatbot() {
+interface ChatbotProps {
+  issues?: Issue[];
+  users?: any[];
+  currentUser?: any;
+  stats?: any;
+}
+
+export default function Chatbot({ issues = [], users = [], currentUser, stats }: ChatbotProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "model",
-      message: "Hey there! I am Eco-Echo, your personal municipal helper. Ask me how to earn points, what issues are active, or ask me to check a report!"
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [fetching, setFetching] = useState(false);
   const threadEndRef = useRef<HTMLDivElement | null>(null);
@@ -34,10 +37,28 @@ export default function Chatbot() {
     setFetching(true);
 
     try {
+      const lightweightIssues = issues.map(i => ({
+        id: i.id,
+        title: i.title,
+        category: i.category,
+        urgency: i.urgency,
+        status: i.status,
+        address: i.address,
+        reporterName: i.reporterName,
+        upvotes: i.upvotes,
+        resolvedAt: i.resolvedAt
+      }));
+
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updatedMessages })
+        body: JSON.stringify({ 
+          messages: updatedMessages, 
+          issues: lightweightIssues,
+          users,
+          currentUser,
+          stats
+        })
       });
 
       if (!response.ok) {
@@ -50,7 +71,7 @@ export default function Chatbot() {
       console.error(err);
       setMessages(prev => [...prev, {
         role: "model",
-        message: "Apologies, my civic telemetry linkage was interrupted! Rest assured our works dispatch crews remain on high alert."
+        message: "I couldn't find that information."
       }]);
     } finally {
       setFetching(false);
