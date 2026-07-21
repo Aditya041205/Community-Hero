@@ -5,6 +5,8 @@ import {
   db,
   googleProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   updateProfile,
@@ -46,6 +48,20 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else {
       console.error("[AUTH-INIT] Firebase auth object is uninitialized!");
     }
+
+    // Check for redirect result
+    getRedirectResult(auth).then((result) => {
+      if (result) {
+        console.log("[AUTH-CLIENT] Redirect result successful");
+      }
+    }).catch((error) => {
+      console.error("[AUTH-CLIENT] Redirect result error:", error);
+      if (isMounted) {
+        let errorMsg = "Google sign-in encountered an error during redirect. Please try again.";
+        if (error.code === "auth/network-request-failed") errorMsg = "Network error. Please check your internet connection.";
+        setState(prev => ({ ...prev, loading: false, error: errorMsg }));
+      }
+    });
 
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -90,6 +106,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             console.log(`[AUTH-CLIENT] Existing user found: ${firebaseUser.email}`);
             console.log(`[AUTH-CLIENT] Existing role loaded: ${role}`);
+            console.log("[AUTH-CLIENT] Firestore user loaded");
             
             // Update only displayName, photoURL, lastLoginAt so existing fields are preserved
             await setDoc(userDocRef, {
@@ -225,19 +242,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
+    console.log("[AUTH-CLIENT] Authentication started");
     try {
-      // Launch standard Google OAuth interactive Sign-In popup
+      console.log("[AUTH-CLIENT] Popup opened");
+      // Launch standard Google OAuth interactive Sign-In popup IMMEDIATELY to avoid browser popup blockers
       await signInWithPopup(auth, googleProvider);
+      console.log("[AUTH-CLIENT] Login successful");
       // State and local sync will be automatically triggered by onAuthStateChanged!
+      setState(prev => ({ ...prev, loading: false, error: null }));
       return { success: true };
     } catch (err: any) {
+      if (err.code === "auth/popup-blocked" || err.code === "auth/unauthorized-domain") {
+        console.warn("[AUTH-CLIENT] Popup blocked. Falling back to redirect...", err.message);
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return { success: true };
+        } catch (redirectErr: any) {
+          console.error("[AUTH-CLIENT] Redirect fallback failed:", redirectErr);
+          setState(prev => ({ ...prev, loading: false, error: redirectErr.message }));
+          return { success: false, error: redirectErr.message };
+        }
+      }
+
       console.error("[AUTH-CLIENT] Firebase Google Sign-In failed:", err);
+      
       let errorMsg = "Google authentication failed. Please try again.";
       if (err.code === "auth/popup-closed-by-user") {
+        console.log("[AUTH-CLIENT] Popup closed by user.");
         errorMsg = "The sign-in window was closed before finishing authentication. Please click 'Continue with Google' to try again.";
-      } else if (err.code === "auth/blocked-by-popup-resolver") {
-        errorMsg = "Sign-in popup blocked by your browser. Please allow popups.";
+      } else if (err.code === "auth/cancelled-popup-request") {
+        errorMsg = "The popup request was cancelled. Please try again.";
+      } else if (err.code === "auth/network-request-failed") {
+        errorMsg = "Network error. Please check your internet connection and try again.";
       } else if (err.code === "auth/operation-not-allowed") {
         errorMsg = "Google Sign-In is not enabled in your Firebase Console. Please go to your Firebase Console, click 'Authentication' -> 'Sign-in method', add the 'Google' provider, and enable it.";
       } else if (err.message) {

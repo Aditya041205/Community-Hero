@@ -15,10 +15,10 @@ export default function AuthPage() {
       const result = await loginWithGoogle();
       if (!result.success) {
         setFormError(result.error || "Google authentication failed.");
+        setIsSubmitting(false);
       }
     } catch (err) {
       setFormError("Google sign-in encountered an unexpected error.");
-    } finally {
       setIsSubmitting(false);
     }
   };

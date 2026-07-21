@@ -1,7 +1,15 @@
 import React, { useState, useRef, useEffect } from "react";
-import { MessageSquare, Send, X, RefreshCw, User, HelpCircle } from "lucide-react";
+import { MessageSquare, Send, X, RefreshCw, User, HelpCircle, Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Issue } from "../types";
+
+// Add Speech Recognition Types
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 interface Message {
   role: "user" | "model";
@@ -20,15 +28,107 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [fetching, setFetching] = useState(false);
+  
+  // Voice feature states
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  
   const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize Speech Recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'hi-IN'; // Supports Hindi, English, and Hinglish well
+      
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+      
+      recognition.onresult = (event: any) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscript) {
+          setInputMessage(finalTranscript);
+          handleSendMessage(finalTranscript);
+        } else if (interimTranscript) {
+          setInputMessage(interimTranscript);
+        }
+      };
+      
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        if (event.error === 'not-allowed') {
+          setSpeechSupported(false);
+        }
+        setIsListening(false);
+      };
+      
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+      
+      recognitionRef.current = recognition;
+    } else {
+      setSpeechSupported(false);
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+      window.speechSynthesis.cancel();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto scroll to latest answers
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
+  const speakText = (text: string) => {
+    if (!voiceEnabled || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel(); // Stop any previous speech
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'hi-IN'; // Works for Hindi and English
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const toggleListen = () => {
+    if (!recognitionRef.current) return;
+    
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      setInputMessage("");
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error("Could not start speech recognition", err);
+      }
+    }
+  };
+
   const handleSendMessage = async (msgText: string) => {
     if (!msgText.trim()) return;
+    
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
 
     const userMessage: Message = { role: "user", message: msgText };
     const updatedMessages = [...messages, userMessage];
@@ -67,12 +167,15 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
 
       const data = await response.json();
       setMessages(prev => [...prev, { role: "model", message: data.response }]);
+      speakText(data.response);
     } catch (err: any) {
       console.error(err);
+      const errorMsg = "I couldn't find that information.";
       setMessages(prev => [...prev, {
         role: "model",
-        message: "I couldn't find that information."
+        message: errorMsg
       }]);
+      speakText(errorMsg);
     } finally {
       setFetching(false);
     }
@@ -128,7 +231,19 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
                   </div>
                 </div>
               </div>
-              <HelpCircle size={14} className="text-slate-400" />
+              <div className="flex items-center space-x-3">
+                <button 
+                  onClick={() => {
+                    if (voiceEnabled) window.speechSynthesis.cancel();
+                    setVoiceEnabled(!voiceEnabled);
+                  }}
+                  className="text-slate-400 hover:text-white transition"
+                  title={voiceEnabled ? "Mute Voice Responses" : "Enable Voice Responses"}
+                >
+                  {voiceEnabled ? <Volume2 size={16} className="text-emerald-400" /> : <VolumeX size={16} />}
+                </button>
+                <HelpCircle size={14} className="text-slate-400" />
+              </div>
             </div>
 
             {/* Scrollable message Thread stream */}
@@ -160,6 +275,14 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
                   </div>
                 </div>
               )}
+              {isListening && !fetching && (
+                <div className="flex justify-start">
+                  <div className="flex items-center space-x-2 bg-slate-900/40 backdrop-blur-md border border-red-500/30 p-2 rounded-xl rounded-tl-none text-red-400">
+                    <Mic className="animate-pulse" size={12} />
+                    <span>Listening...</span>
+                  </div>
+                </div>
+              )}
               <div ref={threadEndRef} />
             </div>
 
@@ -181,16 +304,35 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
             {/* Box input texting bar */}
             <form
               onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputMessage); }}
-              className="p-2.5 bg-slate-900/40 backdrop-blur-md border-t border-white/10 flex items-center space-x-2"
+              className="p-2.5 bg-slate-900/40 backdrop-blur-md border-t border-white/10 flex items-center space-x-2 relative"
             >
-              <input
-                type="text"
-                placeholder="Ask Eco-Echo details..."
-                value={inputMessage}
-                disabled={fetching}
-                onChange={(e) => setInputMessage(e.target.value)}
-                className="flex-1 bg-slate-950/45 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/40"
-              />
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  placeholder={isListening ? "Listening..." : "Ask Eco-Echo details..."}
+                  value={inputMessage}
+                  disabled={fetching || isListening}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  className={`w-full bg-slate-950/45 border ${isListening ? 'border-red-500/50' : 'border-white/10'} rounded-xl pl-3 pr-10 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/40 transition-colors`}
+                />
+                
+                {speechSupported && (
+                  <button
+                    type="button"
+                    onClick={toggleListen}
+                    disabled={fetching}
+                    className={`absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-colors ${
+                      isListening 
+                        ? 'bg-red-500/20 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.3)] animate-pulse' 
+                        : 'text-slate-400 hover:bg-white/10 hover:text-white'
+                    }`}
+                    title={isListening ? "Stop Listening" : "Start Voice Input"}
+                  >
+                    {isListening ? <Mic size={14} /> : <MicOff size={14} />}
+                  </button>
+                )}
+              </div>
+              
               <button
                 type="submit"
                 disabled={fetching || !inputMessage.trim()}
@@ -205,3 +347,4 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
     </div>
   );
 }
+

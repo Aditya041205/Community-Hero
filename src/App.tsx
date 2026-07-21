@@ -85,6 +85,7 @@ export default function App() {
   const navigate = (path: string) => {
     window.history.pushState(null, "", path);
     setCurrentPath(path);
+    console.log(`[NAVIGATION] Navigation completed to ${path}`);
   };
 
   // Reset tab when selection changes
@@ -262,7 +263,7 @@ export default function App() {
         } else if (user.role === "authority") {
           navigate("/authority");
         } else {
-          navigate("/dashboard");
+          navigate("/citizen");
         }
       }
     }
@@ -389,7 +390,7 @@ export default function App() {
     setIssues(prev => [...prev, newIssue]);
     setSelectedIssueId(newIssue.id);
     fetchAllData();
-    navigate("/dashboard");
+    navigate("/citizen");
   };
 
   const selectedIssue = issues.find(i => i.id === selectedIssueId);
@@ -417,7 +418,7 @@ export default function App() {
     } else if (user.role === "authority") {
       navigate("/authority");
     } else {
-      navigate("/dashboard");
+      navigate("/citizen");
     }
   };
 
@@ -587,14 +588,14 @@ export default function App() {
                   
                   {/* Dashboard link (All) */}
                   <button
-                    onClick={() => navigate("/dashboard")}
+                    onClick={() => navigate("/citizen")}
                     className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center space-x-2.5 transition cursor-pointer ${
-                      currentPath === "/dashboard" 
+                      currentPath === "/citizen" 
                         ? "bg-white/10 text-white font-bold border border-white/10" 
                         : "text-slate-450 hover:text-slate-200 hover:bg-white/5"
                     }`}
                   >
-                    <Layers size={14} className={currentPath === "/dashboard" ? "text-indigo-400" : ""} />
+                    <Layers size={14} className={currentPath === "/citizen" ? "text-indigo-400" : ""} />
                     <span>📍 Citizen Dashboard</span>
                   </button>
 
@@ -667,7 +668,7 @@ export default function App() {
                 <AnimatePresence mode="wait">
                   
                   {/* Route: Dashboard (Integrated Map, Analytics, Leaderboard Tabs) */}
-                  {currentPath === "/dashboard" && (
+                  {currentPath === "/citizen" && (
                     <motion.div
                       key="dashboard"
                       initial={{ opacity: 0, y: 5 }}
