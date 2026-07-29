@@ -54,5 +54,13 @@
     "badge": "Watchful Neighbor",
     "issuesReported": 1,
     "issuesResolved": 0
+  },
+  {
+    "id": "123",
+    "name": "Test",
+    "points": 100,
+    "badge": "Civic Novice",
+    "issuesReported": 0,
+    "issuesResolved": 0
   }
 ]

@@ -124,8 +124,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const syncRes = await fetch("/api/auth/firebase-sync", {
             method: "POST",
             headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${idToken}`
+              "Content-Type": "application/json"
             },
             body: JSON.stringify({
               uid: firebaseUser.uid,

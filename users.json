@@ -1,0 +1,12 @@
+[
+  {
+    "id": "123",
+    "email": "test@example.com",
+    "name": "Test",
+    "role": "citizen",
+    "points": 100,
+    "badge": "Civic Novice",
+    "reputation": 100,
+    "joinedAt": "2026-07-29T05:41:27.639Z"
+  }
+]
