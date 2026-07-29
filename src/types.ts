@@ -8,7 +8,7 @@ export interface Comment {
 
 export interface TimelineEvent {
   id: string;
-  status: "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed";
+  status: "Pending" | "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed" | "Archived";
   timestamp: string;
   title: string;
   description: string;
@@ -23,8 +23,12 @@ export interface Issue {
   longitude: number;
   location?: { lat: number, lng: number };
   address: string;
+  city: string;
+  state: string;
+  country: string;
+  author?: string;
   urgency: "Low" | "Medium" | "High" | "Critical";
-  status: "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed";
+  status: "Pending" | "Reported" | "Verified" | "Assigned" | "In Progress" | "Resolved" | "Closed" | "Archived";
   assignedTeam?: string;
   reporterName: string;
   reporterEmail?: string;

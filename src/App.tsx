@@ -118,6 +118,9 @@ export default function App() {
           longitude: data.longitude || -73.9800,
           location: typeof data.location === 'object' ? data.location : undefined,
           address: data.address || (typeof data.location === 'string' ? data.location : ""),
+          city: data.city || "",
+          state: data.state || "",
+          country: data.country || "",
           urgency: data.severity || "Medium",
           status: data.status || "Reported",
           reporterName: data.createdBy || "Anonymous Hero",
@@ -675,9 +678,9 @@ export default function App() {
                       {dashboardTab === "map" && (
                         <div className="grid grid-cols-1 md:grid-cols-1 gap-5">
                           <InteractiveMap
-                            issues={issues.filter(i => i.status !== "Resolved" && i.status !== "Closed")}
+                            issues={issues.filter(i => i.status !== "Closed")}
                             selectedIssueId={selectedIssueId}
-                            onSelectIssueId={setSelectedIssueId}
+                            onSelectIssueId={(id: string) => setSelectedIssueId(id)}
                             onMapClick={handleMapClick}
                             clickedCoords={clickedCoords}
                           />
@@ -915,7 +918,7 @@ export default function App() {
                       <AuthorityPanel
                         issues={issues}
                         selectedIssueId={selectedIssueId}
-                        onSelectIssueId={setSelectedIssueId}
+                        onSelectIssueId={(id: string) => setSelectedIssueId(id)}
                         onUpdateIssueStatus={handleUpdateStatus}
                         onRefreshData={fetchAllData}
                       />

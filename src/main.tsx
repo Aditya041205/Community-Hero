@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import { AuthProvider } from './components/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Add robust global listeners to catch and suppress untraceable third-party/cross-origin or extension errors.
 if (typeof window !== "undefined") {
@@ -22,7 +23,7 @@ if (typeof window !== "undefined") {
     }
     return originalAddEventListener.apply(this, arguments as any);
   };
-
+  
   const originalDocAddEventListener = document.addEventListener;
   document.addEventListener = function(type, listener, options) {
     if (type === "error" || type === "unhandledrejection") {
@@ -60,9 +61,11 @@ if (typeof window !== "undefined") {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <App />
+      </AuthProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
 
