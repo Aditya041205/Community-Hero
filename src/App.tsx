@@ -11,7 +11,6 @@ import Chatbot from "./components/Chatbot";
 import DashboardAnalytics from "./components/DashboardAnalytics";
 import AuthorityPanel from "./components/AuthorityPanel";
 import LeaderboardGamification from "./components/LeaderboardGamification";
-import PresentationDeck from "./components/PresentationDeck";
 import AdminPanel from "./components/AdminPanel";
 import IssueTimeline from "./components/IssueTimeline";
 import ResolvedComplaintsPage from "./components/ResolvedComplaintsPage";
@@ -51,9 +50,6 @@ class AdminErrorBoundary extends React.Component<any, any> {
 export default function App() {
   const { user, token, logout, loading } = useAuth();
 
-  // Mode: "interactive" (main app) vs "pitch" (presentation slides)
-  const [workspaceMode, setWorkspaceMode] = useState<"interactive" | "pitch">("interactive");
-  
   // Real-time custom browser path state
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
@@ -473,23 +469,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-3 self-start sm:self-auto z-10">
-            <div className="flex items-center space-x-1 bg-white/5 backdrop-blur-md p-0.5 rounded-xl border border-white/10">
-              <button
-                onClick={() => setWorkspaceMode("interactive")}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition cursor-pointer ${workspaceMode === 'interactive' ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-sm text-white' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                <Layers size={12} />
-                <span>📱 Live Platform</span>
-              </button>
-              <button
-                onClick={() => setWorkspaceMode("pitch")}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center space-x-1 transition cursor-pointer ${workspaceMode === 'pitch' ? 'bg-gradient-to-tr from-blue-500 to-indigo-600 shadow-sm text-white' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                <BookOpen size={12} />
-                <span>📊 Pitch Deck</span>
-              </button>
-            </div>
-
             {user && (
               <button
                 onClick={logout}
@@ -507,19 +486,7 @@ export default function App() {
       {/* Primary Layout Container */}
       <main className="max-w-7xl mx-auto px-4 md:px-8 mt-6">
         <AnimatePresence mode="wait">
-          
-          {/* Pitch Deck View */}
-          {workspaceMode === "pitch" ? (
-            <motion.div
-              key="pitch"
-              initial={{ opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              className="max-w-4xl mx-auto"
-            >
-              <PresentationDeck />
-            </motion.div>
-          ) : !user ? (
+          {!user ? (
             /* Auth Gate */
             <motion.div
               key="auth-gate"
