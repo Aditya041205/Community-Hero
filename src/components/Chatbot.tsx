@@ -71,7 +71,7 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
       };
       
       recognition.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
+        console.warn("Speech recognition error", event.error);
         if (event.error === 'not-allowed') {
           setSpeechSupported(false);
         }
