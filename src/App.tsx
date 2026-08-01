@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   ShieldAlert, MapPin, Award, Layers, TrendingUp, Info, HelpCircle, User, Zap, BookOpen, LogOut, ShieldCheck, Clipboard, Shield, BarChart3, Trophy, Key, RefreshCw, Share2, Sparkles, X, Download, Link
-} from "lucide-react";
+, Plus, AlertCircle } from "lucide-react";
 import jsPDF from "jspdf";
 
 import InteractiveMap from "./components/InteractiveMap";
@@ -19,7 +19,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import AuthPage from "./components/AuthPage";
 import AccessDenied from "./components/AccessDenied";
 import { Issue, LeaderboardEntry, AnalyticsData } from "./types";
-import { collection, onSnapshot, query, doc, setDoc, updateDoc, arrayUnion, increment } from "firebase/firestore";
+import { collection, onSnapshot, query, doc, setDoc, updateDoc, arrayUnion, increment, getDocs, deleteDoc } from "firebase/firestore";
 import { db } from "./lib/firebase";
 
 class AdminErrorBoundary extends React.Component<any, any> {
@@ -115,6 +115,23 @@ export default function App() {
     if (!user) return;
 
     console.log("[COMPLAINT-SYNC] Subscribing to Firestore complaints onSnapshot...");
+    
+    // ONE-TIME SWEEP OF MOCK DATA
+    (async () => {
+       try {
+           
+           const snap = await getDocs(collection(db, "complaints"));
+           for (const d of snap.docs) {
+               const data = d.data();
+               if (data.isMock === true || !data.title || data.title.includes("Encountered") || data.title.includes("General Roadway") || data.title.includes("Unspecified") || data.title.includes("Fallen Tree") || data.title.includes("Demo")) {
+                   await deleteDoc(doc(db, "complaints", d.id));
+                   console.log("Deleted mock doc:", d.id);
+               }
+           }
+       } catch (e) {
+           console.error("Failed sweep:", e);
+       }
+    })();
     const q = query(collection(db, "complaints"));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const mappedIssues: Issue[] = querySnapshot.docs.map(docSnap => {
@@ -124,8 +141,8 @@ export default function App() {
           title: data.title || "",
           description: data.description || "",
           category: data.category || "",
-          latitude: data.location?.lat ?? data.latitude ?? 40.7500,
-          longitude: data.location?.lng ?? data.longitude ?? -73.9800,
+          latitude: data.location?.lat ?? data.latitude,
+          longitude: data.location?.lng ?? data.longitude,
           location: typeof data.location === 'object' ? data.location : undefined,
           address: data.address || (typeof data.location === 'string' ? data.location : ""),
           city: data.city || "",
@@ -166,7 +183,12 @@ export default function App() {
       });
 
       console.log(`[COMPLAINT-SYNC] Received ${mappedIssues.length} issues from Firestore.`);
-      console.log("[DEBUG] Firestore loaded. Complaints loaded.");
+      console.log("[DEBUG] Firestore loaded. Complaints loaded:");
+      const complaints = mappedIssues; console.log(complaints);
+      console.log("[DEBUG] Firestore collection path: complaints");
+      mappedIssues.forEach(issue => {
+        console.log(`[DEBUG] Document ID: ${issue.id} | Coordinates: ${issue.latitude}, ${issue.longitude}`);
+      });
       setIssues(mappedIssues);
     }, (err) => {
       console.error("[COMPLAINT-SYNC] Firestore onSnapshot error:", err);
@@ -690,15 +712,27 @@ export default function App() {
                       {/* Render dashboard segments */}
                       {console.log("[DEBUG] Citizen Dashboard rendered.")}
                       {dashboardTab === "map" && (
-                        <div className="grid grid-cols-1 md:grid-cols-1 gap-5">
-                          {issues.filter(i => i?.status !== "Closed" && i?.status !== "Resolved" && i?.status !== "Archived").length === 0 ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                          <div className="lg:col-span-2 space-y-5">
+                          {issues.filter(i => i?.status !== "Archived").length === 0 ? (
                             <div className="bg-slate-900/60 p-8 rounded-3xl border border-white/10 text-center text-slate-400 flex flex-col items-center justify-center h-[500px]">
-                               <p className="font-bold text-lg">No complaints found.</p>
+                               <div className="bg-slate-800/50 p-6 rounded-full mb-4 border border-white/5">
+                                  <AlertCircle size={48} className="text-slate-500" />
+                               </div>
+                               <p className="font-bold text-lg text-slate-300">No complaints have been reported yet.</p>
+                               <p className="text-sm text-slate-500 mt-2 mb-6 max-w-md">Be the first to report an issue in your community and help improve the neighborhood.</p>
+                               <button 
+                                 onClick={() => navigate("/report-issue")}
+                                 className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl font-bold text-white hover:brightness-110 transition shadow-lg flex items-center gap-2 cursor-pointer"
+                               >
+                                 <Plus size={18} />
+                                 <span>Report Issue</span>
+                               </button>
                             </div>
                           ) : (
                             <ErrorBoundary fallback={<div className="w-full h-[500px] bg-slate-900 rounded-2xl flex items-center justify-center text-slate-400 font-bold border border-white/10">Map could not be loaded.</div>}>
                             <InteractiveMap
-                            issues={issues.filter(i => i?.status !== "Closed" && i?.status !== "Resolved" && i?.status !== "Archived")}
+                            issues={issues.filter(i => i?.status !== "Archived")}
                             selectedIssueId={selectedIssueId}
                             onSelectIssueId={(id: string) => setSelectedIssueId(id)}
                             onMapClick={handleMapClick}
@@ -891,6 +925,57 @@ export default function App() {
                               </AnimatePresence>
                             </motion.div>
                           )}
+                          </div>
+                          
+                          <div className="bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-3xl p-5 flex flex-col h-[500px] lg:h-[700px] overflow-hidden">
+                            <h3 className="text-white font-bold mb-4 border-b border-white/10 pb-3 text-sm flex justify-between items-center">
+                              <span>Complaint List</span>
+                              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">{issues.filter(i => i?.status !== "Archived").length}</span>
+                            </h3>
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                               {issues.filter(i => i?.status !== "Archived").map(issue => (
+                                  <div 
+                                    key={issue.id} 
+                                    onClick={() => setSelectedIssueId(issue.id)}
+                                    className={`p-4 rounded-2xl border transition cursor-pointer flex flex-col gap-2 ${selectedIssueId === issue.id ? 'bg-indigo-500/20 border-indigo-500/50' : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
+                                  >
+                                     <div className="flex justify-between items-start gap-2">
+                                       <h4 className="font-bold text-slate-200 text-xs line-clamp-2">{issue.title}</h4>
+                                       <span className={`px-2 py-0.5 rounded text-[9px] uppercase font-bold tracking-wider shrink-0 ${
+                                           issue.status === 'Resolved' ? 'bg-emerald-500/20 text-emerald-300' : 
+                                           issue.status === 'In Progress' ? 'bg-amber-500/10 text-amber-300' :
+                                           'bg-white/10 text-slate-400'
+                                       }`}>
+                                         {issue.status}
+                                       </span>
+                                     </div>
+                                     
+                                     <div className="flex justify-between items-center text-[10px]">
+                                       <span className="font-mono bg-slate-950 px-1.5 py-0.5 rounded text-slate-400 border border-white/5">{issue.category}</span>
+                                       <span className="text-slate-500">{new Date(issue.createdAt).toLocaleDateString()}</span>
+                                     </div>
+
+                                     <div className="flex flex-col gap-1 mt-1 text-[10px] text-slate-400">
+                                       {issue.address && (
+                                         <div className="flex items-center gap-1">
+                                           <MapPin size={10} className="text-indigo-400 shrink-0" />
+                                           <span className="truncate">{issue.address}</span>
+                                         </div>
+                                       )}
+                                       <div className="flex items-center justify-between mt-1 border-t border-white/5 pt-1">
+                                         <span>Reporter: <span className="text-slate-300">{issue.reporterName}</span></span>
+                                         <span className={`font-bold ${issue.urgency === 'High' ? 'text-red-400' : issue.urgency === 'Medium' ? 'text-amber-400' : 'text-emerald-400'}`}>{issue.urgency}</span>
+                                       </div>
+                                     </div>
+
+                                     {issue.image && (
+                                       <img src={issue.image} alt={issue.title} className="w-full h-24 object-cover rounded-lg border border-white/10 mt-1" referrerPolicy="no-referrer" />
+                                     )}
+                                  </div>
+                               ))}
+                            </div>
+                          </div>
+                          
                         </div>
                       )}
 

@@ -182,10 +182,17 @@ export default function InteractiveMap({
             maxClusterRadius={40}
             showCoverageOnHover={false}
           >
-            {filteredIssues.map(issue => !issue ? null : (
+            {filteredIssues.map(issue => {
+              if (!issue) return null;
+              const lat = issue.latitude ?? issue.location?.lat;
+              const lng = issue.longitude ?? issue.location?.lng;
+              if (lat === undefined || lng === undefined || lat === null || lng === null || isNaN(lat) || isNaN(lng)) {
+                return null; // Skip marker if coordinates are missing
+              }
+              return (
               <Marker
                 key={issue?.id}
-                position={[issue?.latitude || issue?.location?.lat || 0, issue?.longitude || issue?.location?.lng || 0]}
+                position={[lat, lng]}
                 icon={createCustomIcon(issue?.status)}
                 eventHandlers={{
                   click: () => onSelectIssueId && onSelectIssueId(issue?.id)
@@ -248,7 +255,8 @@ export default function InteractiveMap({
                   </div>
                 </Popup>
               </Marker>
-            ))}
+            )
+            })}
           </MarkerClusterGroup>
         ) : (
           <>

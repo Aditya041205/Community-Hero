@@ -19,8 +19,8 @@ export interface Issue {
   title: string;
   description: string;
   category: string;
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   location?: { lat: number, lng: number };
   address: string;
   city: string;
