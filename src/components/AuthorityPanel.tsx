@@ -44,18 +44,18 @@ export default function AuthorityPanel({
 
   // Filter complaints
   const filteredIssues = issues.filter(issue => {
-    const isActive = issue.status !== "Resolved" && issue.status !== "Closed";
+    const isActive = issue?.status !== "Resolved" && issue?.status !== "Closed";
     if (viewFilter === "assigned") {
       // Deemed assigned if assignedTeam is set or matches authority email specifically
       return isActive && (
-        issue.assignedAuthorityEmail === user?.email || 
-        (issue.assignedTeam && issue.assignedTeam !== "")
+        issue?.assignedAuthorityEmail === user?.email || 
+        (issue?.assignedTeam && issue?.assignedTeam !== "")
       );
     }
     return isActive;
   });
 
-  const selectedIssue = issues.find(i => i.id === selectedIssueId);
+  const selectedIssue = issues.find(i => i?.id === selectedIssueId);
 
   // File Upload Handlers (Drag & Drop & Browse to Base64)
   const processFile = (file: File) => {
@@ -218,9 +218,9 @@ export default function AuthorityPanel({
   };
 
   // Precinct Metrics Calculations
-  const resolvedIssuesCount = issues.filter(i => i.status === "Resolved" || i.status === "Closed").length;
-  const activeIssuesCount = issues.filter(i => i.status !== "Resolved" && i.status !== "Closed").length;
-  const highPriorityCount = issues.filter(i => (i.urgency === "High" || i.urgency === "Critical") && i.status !== "Resolved").length;
+  const resolvedIssuesCount = issues.filter(i => i?.status === "Resolved" || i?.status === "Closed").length;
+  const activeIssuesCount = issues.filter(i => i?.status !== "Resolved" && i?.status !== "Closed").length;
+  const highPriorityCount = issues.filter(i => (i?.urgency === "High" || i?.urgency === "Critical") && i?.status !== "Resolved").length;
   const totalPrecinctTickets = issues.length;
   const resolutionRate = totalPrecinctTickets > 0 ? Math.round((resolvedIssuesCount / totalPrecinctTickets) * 100) : 100;
 
@@ -240,25 +240,25 @@ export default function AuthorityPanel({
               onClick={() => setViewFilter("all")}
               className={`py-1.5 rounded-lg transition cursor-pointer ${viewFilter === "all" ? "bg-white/10 text-white font-bold" : "text-slate-400 hover:text-slate-200"}`}
             >
-              All Tickets ({issues.filter(i => i.status !== "Resolved" && i.status !== "Closed").length})
+              All Tickets ({issues.filter(i => i?.status !== "Resolved" && i?.status !== "Closed").length})
             </button>
             <button
               onClick={() => setViewFilter("assigned")}
               className={`py-1.5 rounded-lg transition cursor-pointer ${viewFilter === "assigned" ? "bg-white/10 text-white font-bold" : "text-slate-400 hover:text-slate-200"}`}
             >
-              Assigned ({issues.filter(i => i.status !== "Resolved" && i.status !== "Closed" && (i.assignedAuthorityEmail === user?.email || (i.assignedTeam && i.assignedTeam !== ""))).length})
+              Assigned ({issues.filter(i => i?.status !== "Resolved" && i?.status !== "Closed" && (i?.assignedAuthorityEmail === user?.email || (i?.assignedTeam && i?.assignedTeam !== ""))).length})
             </button>
           </div>
 
           {/* Compact Issue List */}
           <div className="max-h-[350px] overflow-y-auto space-y-1.5 pr-1 scrollbar-none">
-            {filteredIssues.map(issue => {
-              const isActive = selectedIssueId === issue.id;
+            {filteredIssues.map(issue => { if (!issue) return null;
+              const isActive = selectedIssueId === issue?.id;
               return (
                 <button
-                  key={issue.id}
+                  key={issue?.id}
                   onClick={() => {
-                    onSelectIssueId(isActive ? null : issue.id);
+                    onSelectIssueId(isActive ? null : issue?.id);
                     setResNotes("");
                     setProofImage(null);
                     setResError(null);
@@ -271,7 +271,7 @@ export default function AuthorityPanel({
                 >
                   <div className="truncate max-w-[140px]">
                     <span className="font-bold block truncate text-slate-200">{issue.title}</span>
-                    <span className="text-[9px] text-slate-400 font-mono italic block mt-0.5">{issue.category}</span>
+                    <span className="text-[9px] text-slate-400 font-mono italic block mt-0.5">{issue?.category}</span>
                   </div>
                   <div className="flex flex-col items-end gap-1 flex-shrink-0">
                     <span className={`px-1.5 py-0.2 rounded text-[8px] uppercase font-bold tracking-wider ${
@@ -281,7 +281,7 @@ export default function AuthorityPanel({
                     }`}>
                       {issue.urgency}
                     </span>
-                    <span className="text-[8px] font-mono text-slate-500">{issue.status}</span>
+                    <span className="text-[8px] font-mono text-slate-500">{issue?.status}</span>
                   </div>
                 </button>
               );
@@ -336,7 +336,7 @@ export default function AuthorityPanel({
                     <span className="text-white text-sm font-display truncate max-w-[240px] block">{selectedIssue.title}</span>
                     <span className="text-[9px] text-slate-400 font-mono font-medium block mt-0.5">Address: {selectedIssue.address}</span>
                   </div>
-                  <span className="text-[10px] bg-indigo-500/25 border border-indigo-400/25 text-indigo-300 font-mono px-2 py-0.5 rounded-lg">{selectedIssue.status}</span>
+                  <span className="text-[10px] bg-indigo-500/25 border border-indigo-400/25 text-indigo-300 font-mono px-2 py-0.5 rounded-lg">{selectedIssue?.status}</span>
                 </div>
                 
                 <div className="text-xs space-y-2.5">
@@ -372,7 +372,7 @@ export default function AuthorityPanel({
                   {/* 1. Verify Ticket */}
                   <button
                     onClick={handleVerify}
-                    disabled={selectedIssue.status !== "Reported" || actionLoading !== null}
+                    disabled={selectedIssue?.status !== "Reported" || actionLoading !== null}
                     className="p-2.5 bg-slate-950/50 hover:bg-white/5 border border-white/10 rounded-xl text-slate-300 hover:text-white flex flex-col items-center justify-center gap-1.5 transition-all text-center disabled:opacity-30 cursor-pointer"
                   >
                     <Eye size={14} className={actionLoading === "verify" ? "text-cyan-400 animate-pulse" : "text-cyan-400"} />
@@ -382,7 +382,7 @@ export default function AuthorityPanel({
                   {/* 2. Advance to In Progress */}
                   <button
                     onClick={handleAdvanceToInProgress}
-                    disabled={(selectedIssue.status !== "Assigned" && selectedIssue.status !== "Verified") || actionLoading !== null}
+                    disabled={(selectedIssue?.status !== "Assigned" && selectedIssue?.status !== "Verified") || actionLoading !== null}
                     className="p-2.5 bg-slate-950/50 hover:bg-white/5 border border-white/10 rounded-xl text-slate-300 hover:text-white flex flex-col items-center justify-center gap-1.5 transition-all text-center disabled:opacity-30 cursor-pointer"
                   >
                     <FileText size={14} className={actionLoading === "progress" ? "text-amber-400 animate-pulse" : "text-amber-400"} />
@@ -392,7 +392,7 @@ export default function AuthorityPanel({
                   {/* 3. Squad Assignment */}
                   <button
                     onClick={handleAssignTeam}
-                    disabled={selectedIssue.status === "Closed" || selectedIssue.status === "Resolved" || actionLoading !== null}
+                    disabled={selectedIssue?.status === "Closed" || selectedIssue?.status === "Resolved" || actionLoading !== null}
                     className="p-2.5 bg-indigo-650/15 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-xl text-indigo-300 hover:text-white flex flex-col items-center justify-center gap-1.5 transition-all text-center disabled:opacity-30 cursor-pointer"
                   >
                     <Briefcase size={14} className={actionLoading === "assign" ? "text-indigo-400 animate-pulse" : "text-indigo-400"} />
@@ -419,7 +419,7 @@ export default function AuthorityPanel({
                     onChange={(e) => setChosenTeam(e.target.value)}
                     className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-2.5 py-1.5 text-slate-200 focus:outline-none cursor-pointer text-xs"
                   >
-                    {squadOptions.map(opt => (
+                    {squadOptions.map(opt => !opt ? null : (
                       <option key={opt} value={opt} className="bg-slate-950 text-slate-200">{opt}</option>
                     ))}
                   </select>

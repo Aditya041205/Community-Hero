@@ -69,8 +69,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
           const data = docSnap.data();
           if (!data) return;
           usersList.push({
-            id: docSnap.id,
-            uid: data.uid || docSnap.id,
+            id: (docSnap?.id || ""),
+            uid: data.uid || (docSnap?.id || ""),
             name: data.displayName || data.name || "Civic Connect User",
             email: data.email || "",
             role: data.role || "citizen",
@@ -169,7 +169,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
     try {
       if (editingAuth) {
         // Edit Mode
-        const userDocRef = doc(db, "users", editingAuth.id);
+        const userDocRef = doc(db, "users", (editingAuth?.id || ""));
         await updateDoc(userDocRef, {
           name: authForm.name,
           email: authForm.email,
@@ -382,8 +382,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                           <div className="flex items-center space-x-1.5">
                             <select
                               value={u.role}
-                              disabled={updatingId === u.id || u.id === currentUser?.id}
-                              onChange={(e) => handleRoleChange(u.id, e.target.value as UserRole)}
+                              disabled={updatingId === u?.id || u?.id === currentUser?.id}
+                              onChange={(e) => handleRoleChange(u?.id, e.target.value as UserRole)}
                               className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-0.5 text-[11px] text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50"
                             >
                               <option value="citizen">Citizen</option>
@@ -411,14 +411,14 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                         </td>
                         <td className="py-3 text-right pr-2">
                           <div className="flex items-center justify-end space-x-1.5">
-                            {u.id !== currentUser?.id && (
-                              deleteConfirmId === u.id ? (
+                            {u?.id !== currentUser?.id && (
+                              deleteConfirmId === u?.id ? (
                                 <div className="flex items-center space-x-1 font-sans text-[10px]">
                                   <span className="text-red-400 font-bold mr-1">Confirm?</span>
                                   <button
                                     onClick={() => {
                                       setDeleteConfirmId(null);
-                                      handleDeleteUser(u.id);
+                                      handleDeleteUser(u?.id);
                                     }}
                                     className="px-2 py-1 bg-red-650 hover:bg-red-500 text-white font-bold rounded-md transition cursor-pointer text-[9px]"
                                   >
@@ -434,8 +434,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                               ) : (
                                 <>
                                   <button
-                                    onClick={() => handleBlockToggle(u.id, !!u.isBlocked)}
-                                    disabled={updatingId === u.id || u.role === "admin"}
+                                    onClick={() => handleBlockToggle(u?.id, !!u.isBlocked)}
+                                    disabled={updatingId === u?.id || u.role === "admin"}
                                     className={`p-1.5 border rounded-lg transition cursor-pointer disabled:opacity-30 ${
                                       u.isBlocked 
                                         ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-450 hover:bg-emerald-500/20" 
@@ -447,8 +447,8 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                                   </button>
                                   
                                   <button
-                                    onClick={() => setDeleteConfirmId(u.id)}
-                                    disabled={updatingId === u.id}
+                                    onClick={() => setDeleteConfirmId(u?.id)}
+                                    disabled={updatingId === u?.id}
                                     className="p-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 rounded-lg transition cursor-pointer"
                                     title="Revoke & Delete Profile"
                                   >
@@ -507,13 +507,13 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                           </div>
                         </div>
                         <div className="flex space-x-1 items-center">
-                          {deleteConfirmId === auth.id ? (
+                          {deleteConfirmId === auth?.id ? (
                             <div className="flex items-center space-x-1 font-sans text-[10px] bg-slate-950/60 p-1 border border-white/10 rounded-xl">
                               <span className="text-red-400 font-bold mr-1 pl-1">Delete?</span>
                               <button
                                 onClick={() => {
                                   setDeleteConfirmId(null);
-                                  handleDeleteUser(auth.id);
+                                  handleDeleteUser(auth?.id);
                                 }}
                                 className="px-2 py-0.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded transition cursor-pointer text-[9px]"
                               >
@@ -536,7 +536,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                                 <Edit size={11} />
                               </button>
                               <button
-                                onClick={() => setDeleteConfirmId(auth.id)}
+                                onClick={() => setDeleteConfirmId(auth?.id)}
                                 className="p-1.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/25 text-red-400 rounded-lg transition cursor-pointer"
                                 title="Delete Official"
                               >
@@ -605,10 +605,10 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                         </div>
                         <div className="col-span-2">
                           <span className={`px-1.5 py-0.5 rounded text-[9px] font-semibold ${
-                            issue.status === 'Resolved' ? 'bg-emerald-500/15 text-emerald-450 border border-emerald-500/20' : 
+                            issue?.status === 'Resolved' ? 'bg-emerald-500/15 text-emerald-450 border border-emerald-500/20' : 
                             'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20'
                           }`}>
-                            {issue.status}
+                            {issue?.status}
                           </span>
                         </div>
                         <div className="col-span-3 pr-2">
@@ -616,9 +616,9 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                             value={issue.assignedTeam || ""}
                             onChange={async (e) => {
                               if (onUpdateIssueStatus) {
-                                setUpdatingId("assign-" + issue.id);
+                                setUpdatingId("assign-" + issue?.id);
                                 try {
-                                  await onUpdateIssueStatus(issue.id, "Assigned", e.target.value);
+                                  await onUpdateIssueStatus(issue?.id, "Assigned", e.target.value);
                                   if (onRefreshData) onRefreshData();
                                 } catch (error) {
                                   setError("Failed to assign team");
@@ -627,7 +627,7 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                                 }
                               }
                             }}
-                            disabled={updatingId === "assign-" + issue.id}
+                            disabled={updatingId === "assign-" + issue?.id}
                             className="bg-slate-950 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-350 focus:outline-none w-full max-w-[180px] cursor-pointer disabled:opacity-50"
                           >
                             <option value="">-- Unassigned --</option>
@@ -640,9 +640,9 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                           <button
                             onClick={async () => {
                               if (onUpdateIssueStatus) {
-                                setUpdatingId("resolve-" + issue.id);
+                                setUpdatingId("resolve-" + issue?.id);
                                 try {
-                                  await onUpdateIssueStatus(issue.id, "Resolved", issue.assignedTeam || "Ecosystem Action Team");
+                                  await onUpdateIssueStatus(issue?.id, "Resolved", issue.assignedTeam || "Ecosystem Action Team");
                                   if (onRefreshData) onRefreshData();
                                 } catch (e) {
                                   setError("Failed to force resolve");
@@ -651,11 +651,11 @@ export default function AdminPanel({ issues = [], onUpdateIssueStatus, onRefresh
                                 }
                               }
                             }}
-                            disabled={issue.status === "Resolved" || updatingId === "resolve-" + issue.id}
+                            disabled={issue?.status === "Resolved" || updatingId === "resolve-" + issue?.id}
                             className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 disabled:opacity-20 border border-emerald-500/20 text-emerald-400 rounded-lg transition cursor-pointer"
                             title="Directly Force Resolve"
                           >
-                            {updatingId === "resolve-" + issue.id ? (
+                            {updatingId === "resolve-" + issue?.id ? (
                               <RefreshCw size={12} className="animate-spin" />
                             ) : (
                               <CheckCircle2 size={12} />

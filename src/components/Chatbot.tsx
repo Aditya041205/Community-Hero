@@ -137,10 +137,10 @@ export default function Chatbot({ issues = [], users = [], currentUser, stats }:
     setFetching(true);
 
     try {
-      const lightweightIssues = issues.map(i => ({
-        id: i.id,
+      const lightweightIssues = issues.filter(Boolean).map(i => ({
+        id: i?.id,
         title: i.title,
-        category: i.category,
+        category: i?.category,
         urgency: i.urgency,
         status: i.status,
         address: i.address,

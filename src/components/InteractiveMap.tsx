@@ -97,7 +97,15 @@ export default function InteractiveMap({
   onMarkerDragEnd,
   onMapClick
 }: InteractiveMapProps) {
-  const [center, setCenter] = useState<[number, number]>([28.6139, 77.2090]); // Default New Delhi
+  const [center, setCenter] = useState<[number, number]>(clickedCoords ? [clickedCoords.lat, clickedCoords.lng] : [28.6139, 77.2090]); // Default New Delhi
+
+  useEffect(() => {
+    if (clickedCoords && !isDashboard) {
+      setCenter([clickedCoords.lat, clickedCoords.lng]);
+    }
+  }, [clickedCoords?.lat, clickedCoords?.lng, isDashboard]); // Center when clickedCoords changes
+
+
   const [zoom, setZoom] = useState(12);
   const [layer, setLayer] = useState<"street" | "satellite">("street");
   const [filterStatus, setFilterStatus] = useState<string>("All");
@@ -117,7 +125,7 @@ export default function InteractiveMap({
         (position) => {
           const newCenter: [number, number] = [position.coords.latitude, position.coords.longitude];
           setCenter(newCenter);
-          setZoom(15);
+          setZoom(17);
           if (onLocationClick) {
             onLocationClick(position.coords.latitude, position.coords.longitude);
           }
@@ -127,6 +135,7 @@ export default function InteractiveMap({
         },
         (error) => {
           console.error("Error getting location:", error);
+          alert("Location permission denied. Please select the location manually.");
         }
       );
     }
@@ -142,10 +151,11 @@ export default function InteractiveMap({
     }
   };
 
+  console.log("[DEBUG] Map rendered.");
   const filteredIssues = issues.filter(i => {
-    const matchStatus = filterStatus === "All" || i.status === filterStatus || (filterStatus === "Pending" && i.status === "Reported"); // Handle Reported as Pending
-    const matchCategory = filterCategory === "All" || i.category === filterCategory;
-    const matchUrgency = filterUrgency === "All" || i.urgency === filterUrgency;
+    const matchStatus = filterStatus === "All" || i?.status === filterStatus || (filterStatus === "Pending" && i?.status === "Reported"); // Handle Reported as Pending
+    const matchCategory = filterCategory === "All" || i?.category === filterCategory;
+    const matchUrgency = filterUrgency === "All" || i?.urgency === filterUrgency;
     return matchStatus && matchCategory && matchUrgency;
   });
 
@@ -172,13 +182,13 @@ export default function InteractiveMap({
             maxClusterRadius={40}
             showCoverageOnHover={false}
           >
-            {filteredIssues.map(issue => (
+            {filteredIssues.map(issue => !issue ? null : (
               <Marker
-                key={issue.id}
-                position={[issue.latitude || issue.location?.lat || 0, issue.longitude || issue.location?.lng || 0]}
-                icon={createCustomIcon(issue.status)}
+                key={issue?.id}
+                position={[issue?.latitude || issue?.location?.lat || 0, issue?.longitude || issue?.location?.lng || 0]}
+                icon={createCustomIcon(issue?.status)}
                 eventHandlers={{
-                  click: () => onSelectIssueId && onSelectIssueId(issue.id)
+                  click: () => onSelectIssueId && onSelectIssueId(issue?.id)
                 }}
               >
                 <Popup className="custom-popup">
@@ -186,13 +196,13 @@ export default function InteractiveMap({
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-bold text-slate-800 text-sm max-w-[150px] truncate">{issue.title}</h3>
                     </div>
-                    <p className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 inline-block mb-2">{issue.category}</p>
+                    <p className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 inline-block mb-2">{issue?.category}</p>
                     <p className="text-[10px] text-slate-500 mb-3">{new Date(issue.createdAt).toLocaleDateString()}</p>
                     
                     <div className="flex flex-col gap-1.5 mb-3">
                       <div className="flex justify-between text-[11px]">
                         <span className="text-slate-500">Status:</span>
-                        <span className="font-semibold text-slate-700">{issue.status}</span>
+                        <span className="font-semibold text-slate-700">{issue?.status}</span>
                       </div>
                       <div className="flex justify-between text-[11px]">
                         <span className="text-slate-500">Priority:</span>
@@ -208,7 +218,7 @@ export default function InteractiveMap({
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(`https://www.google.com/maps?q=${issue.latitude || issue.location?.lat || 0},${issue.longitude || issue.location?.lng || 0}`, '_blank');
+                          window.open(`https://www.google.com/maps?q=${issue?.latitude || issue?.location?.lat || 0},${issue?.longitude || issue?.location?.lng || 0}`, '_blank');
                         }}
                         className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded flex items-center justify-center gap-1 transition-colors"
                       >
@@ -217,7 +227,7 @@ export default function InteractiveMap({
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${issue.latitude || issue.location?.lat || 0},${issue.longitude || issue.location?.lng || 0}`, '_blank');
+                          window.open(`https://www.google.com/maps/dir/?api=1&destination=${issue?.latitude || issue?.location?.lat || 0},${issue?.longitude || issue?.location?.lng || 0}`, '_blank');
                         }}
                         className="flex-1 py-1.5 px-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-bold rounded flex items-center justify-center gap-1 transition-colors"
                       >
@@ -228,7 +238,7 @@ export default function InteractiveMap({
                        <button
                          onClick={(e) => {
                            e.stopPropagation();
-                           onSelectIssueId(issue.id);
+                           onSelectIssueId(issue?.id);
                          }}
                          className="w-full mt-2 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold rounded flex items-center justify-center transition-colors"
                        >
@@ -267,6 +277,7 @@ export default function InteractiveMap({
       {/* Floating Controls */}
       <div className="absolute top-4 right-4 z-[400] flex flex-col gap-2">
         <button
+          type="button"
           onClick={() => setLayer(l => l === "street" ? "satellite" : "street")}
           className="bg-slate-900/90 p-2 rounded-xl text-white shadow-lg border border-slate-700 hover:bg-slate-800 transition-colors"
           title="Toggle Map Style"
@@ -274,6 +285,7 @@ export default function InteractiveMap({
           <MapPin size={18} />
         </button>
         <button
+          type="button"
           onClick={locateUser}
           className="bg-indigo-600/90 p-2 rounded-xl text-white shadow-lg border border-indigo-500 hover:bg-indigo-500 transition-colors"
           title="Locate Me"
@@ -281,6 +293,7 @@ export default function InteractiveMap({
           <Target size={18} />
         </button>
         <button
+          type="button"
           onClick={handleFullscreen}
           className="bg-slate-900/90 p-2 rounded-xl text-white shadow-lg border border-slate-700 hover:bg-slate-800 transition-colors hidden sm:block"
           title="Fullscreen"

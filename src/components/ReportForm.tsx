@@ -4,6 +4,10 @@ import { motion } from "motion/react";
 import { Issue } from "../types";
 import { useAuth } from "./AuthContext";
 import InteractiveMap from "./InteractiveMap";
+import { db, storage } from "../lib/firebase";
+import { collection, addDoc } from "firebase/firestore";
+import { ref, uploadString, getDownloadURL } from "firebase/storage";
+
 
 const TEST_PHOTO_PRESETS = [
   {
@@ -38,8 +42,8 @@ export default function ReportForm({
   const [image, setImage] = useState<string | null>(null);
   const [category, setCategory] = useState("Garbage accumulation");
   
-  const [lat, setLat] = useState("40.7128");
-  const [lng, setLng] = useState("-74.0060");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [stateName, setStateName] = useState("");
@@ -68,7 +72,7 @@ export default function ReportForm({
         setCountry(data.address?.country || "");
       }
     } catch (err) {
-      console.error("Reverse geocoding failed", err);
+      console.warn("Reverse geocoding failed");
     }
   };
 
@@ -111,8 +115,8 @@ export default function ReportForm({
 
     const latitude = parseFloat(lat);
     const longitude = parseFloat(lng);
-    if (isNaN(latitude) || isNaN(longitude)) {
-      setErrorStatus("Please provide valid coordinates.");
+    if (isNaN(latitude) || isNaN(longitude) || lat === "" || lng === "") {
+      setErrorStatus("Please select a location on the map.");
       setSubmitting(false);
       return;
     }
@@ -126,7 +130,7 @@ export default function ReportForm({
         longitude,
         address,
         city,
-        state: stateName,
+        state: stateName || "",
         country,
         image,
         reporterName: currentUsername
@@ -148,7 +152,60 @@ export default function ReportForm({
 
       const responseData = await res.json();
       
-      onIssueReported(responseData.issue);
+      let imageUrl = "";
+      if (image) {
+        const imageRef = ref(storage, `complaints/${Date.now()}`);
+        await uploadString(imageRef, image, "data_url");
+        imageUrl = await getDownloadURL(imageRef);
+      }
+
+      const issueData = responseData.issue;
+      
+      // Save directly to Firestore!
+      await addDoc(collection(db, "complaints"), {
+        title: issueData.title,
+        description: issueData.description,
+        category: issueData.category,
+        severity: issueData.urgency || "Medium",
+        status: "Pending",
+        createdAt: new Date().toISOString(),
+        createdBy: currentUsername,
+        reportedBy: user?.uid || "anonymous",
+        reporterName: currentUsername,
+        latitude: latitude,
+        longitude: longitude,
+        location: { lat: latitude, lng: longitude, address: address || "" },
+        address: address || "",
+        city: city || "",
+        state: stateName || "",
+        country: country || "",
+        imageUrl: imageUrl || image || null, // fallback to base64 if upload fails
+        image: imageUrl || image || null,
+        upvotes: 0,
+        verified: false,
+        isMock: false,
+        recommendation: issueData.recommendation || "",
+        duplicateOfId: issueData.duplicateOfId ?? null,
+        duplicateReason: issueData.duplicateReason || "",
+      });
+
+      // Show success, then wait, then redirect
+      setReportResult({ 
+        title: issueData.title, 
+        urgency: issueData.urgency,
+        duplicateOfId: issueData.duplicateOfId,
+        duplicateReason: issueData.duplicateReason,
+        recommendation: issueData.recommendation
+      });
+      
+      setTitle("");
+      setDescription("");
+      setImage(null);
+      
+      setTimeout(() => {
+        onIssueReported(issueData);
+      }, 2000);
+      return;
       setReportResult({ 
         title: responseData.issue.title, 
         urgency: responseData.issue.urgency,
@@ -237,7 +294,7 @@ export default function ReportForm({
                draggableMarker={true}
                onMarkerDragEnd={handleLocationUpdate}
                onMapClick={handleLocationUpdate}
-               clickedCoords={{ lat: parseFloat(lat), lng: parseFloat(lng) }}
+               clickedCoords={lat && lng && !isNaN(parseFloat(lat)) && !isNaN(parseFloat(lng)) ? { lat: parseFloat(lat), lng: parseFloat(lng) } : null}
              />
           </div>
           <div className="flex gap-2">
@@ -290,7 +347,7 @@ export default function ReportForm({
           {submitting ? (
             <>
               <RefreshCw className="animate-spin" size={14} />
-              <span>Submitting...</span>
+              <span>Submitting Complaint...</span>
             </>
           ) : (
             <>
@@ -314,13 +371,10 @@ export default function ReportForm({
           className={`mt-4 p-3 border rounded-xl text-xs leading-relaxed space-y-1 ${reportResult.duplicateOfId ? 'bg-cyan-950/45 border-cyan-800/80 text-cyan-300' : 'bg-emerald-950/45 border-emerald-900/50 text-emerald-300'}`}
         >
           <div className="flex items-center space-x-2 font-bold font-display">
-            <span>{reportResult.duplicateOfId ? "🔄 Proximity Anti-Duplicate Triggered" : "🎉 Ticket Dispatched Successfully!"}</span>
+            <span>✅ Complaint submitted successfully</span>
           </div>
           <p className="text-[11px] text-slate-350">
-            {reportResult.duplicateOfId
-              ? `Note: ${reportResult.duplicateReason}`
-              : `Complaint identified as "${reportResult.title}" (Urgency: ${reportResult.urgency}).`
-            }
+            Redirecting to dashboard...
           </p>
         </motion.div>
       )}

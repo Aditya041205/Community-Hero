@@ -95,7 +95,7 @@ export default function IssueTimeline({ issue }: IssueTimelineProps) {
 
   // If status is Resolved and we don't have a Resolved event in timeline, let's append one dynamically for safety
   const hasResolvedEvent = completedEvents.some(e => e.status === "Resolved");
-  if (issue.status === "Resolved" && !hasResolvedEvent) {
+  if (issue?.status === "Resolved" && !hasResolvedEvent) {
     completedEvents.push({
       id: "dynamic-resolved",
       status: "Resolved" as const,
@@ -135,7 +135,7 @@ export default function IssueTimeline({ issue }: IssueTimelineProps) {
           Chronological Operations Feed
         </span>
         <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
-          Lifecycle: {issue.status}
+          Lifecycle: {issue?.status}
         </span>
       </div>
 
@@ -144,14 +144,14 @@ export default function IssueTimeline({ issue }: IssueTimelineProps) {
         <div className="absolute left-[25px] top-6 bottom-6 w-0.5 bg-slate-800/80 pointer-events-none"></div>
 
         {/* 1. Completed History Events */}
-        {completedEvents.map((event, index) => {
+        {completedEvents.map((event, index) => { if (!event) return null;
           const isLastEvent = index === completedEvents.length - 1 && pendingStatuses.length === 0;
           const details = getStatusDetails(event.status);
           const IconComponent = details.icon;
 
           return (
             <motion.div 
-              key={event.id}
+              key={event?.id}
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.08 }}
@@ -193,7 +193,7 @@ export default function IssueTimeline({ issue }: IssueTimelineProps) {
         })}
 
         {/* 2. Pending Future Events (Visual Steps) */}
-        {pendingStatuses.map((status, index) => {
+        {pendingStatuses.map((status, index) => { if (!status) return null;
           const isLastPending = index === pendingStatuses.length - 1;
           const details = getStatusDetails(status);
           const IconComponent = details.icon;

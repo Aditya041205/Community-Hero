@@ -15,6 +15,7 @@ import AdminPanel from "./components/AdminPanel";
 import IssueTimeline from "./components/IssueTimeline";
 import ResolvedComplaintsPage from "./components/ResolvedComplaintsPage";
 import { useAuth } from "./components/AuthContext";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import AuthPage from "./components/AuthPage";
 import AccessDenied from "./components/AccessDenied";
 import { Issue, LeaderboardEntry, AnalyticsData } from "./types";
@@ -94,10 +95,19 @@ export default function App() {
   // Sync current username when user signs in
   useEffect(() => {
     if (user) {
-      setCurrentUsername(user.name);
+      setCurrentUsername(user?.name ?? 'Guest');
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!loading) {
+      console.log("[DEBUG] Authentication loaded.");
+      if (user) {
+        console.log(`[DEBUG] User loaded: ${user.name}`);
+        console.log(`[DEBUG] Role loaded: ${user.role}`);
+      }
+    }
+  }, [user, loading]);
   const fetchErrorCountRef = useRef(0);
 
   // Real-time listener for complaints collection in Firestore
@@ -110,12 +120,12 @@ export default function App() {
       const mappedIssues: Issue[] = querySnapshot.docs.map(docSnap => {
         const data = docSnap.data();
         return {
-          id: data.complaintId || docSnap.id,
+          id: data.complaintId || (docSnap?.id || ""),
           title: data.title || "",
           description: data.description || "",
           category: data.category || "",
-          latitude: data.latitude || 40.7500,
-          longitude: data.longitude || -73.9800,
+          latitude: data.location?.lat ?? data.latitude ?? 40.7500,
+          longitude: data.location?.lng ?? data.longitude ?? -73.9800,
           location: typeof data.location === 'object' ? data.location : undefined,
           address: data.address || (typeof data.location === 'string' ? data.location : ""),
           city: data.city || "",
@@ -156,6 +166,7 @@ export default function App() {
       });
 
       console.log(`[COMPLAINT-SYNC] Received ${mappedIssues.length} issues from Firestore.`);
+      console.log("[DEBUG] Firestore loaded. Complaints loaded.");
       setIssues(mappedIssues);
     }, (err) => {
       console.error("[COMPLAINT-SYNC] Firestore onSnapshot error:", err);
@@ -167,8 +178,8 @@ export default function App() {
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
           usersList.push({
-            id: docSnap.id,
-            name: data.name || docSnap.id,
+            id: (docSnap?.id || ""),
+            name: data.name || (docSnap?.id || ""),
             points: data.points || 0,
             badge: data.badge || "Civic Novice",
             issuesReported: data.issuesReported || 0,
@@ -190,7 +201,7 @@ export default function App() {
   useEffect(() => {
     const computeAnalytics = (issuesList: Issue[]): AnalyticsData => {
       const total = issuesList.length;
-      const resolved = issuesList.filter(i => i.status === "Resolved" || i.status === "Closed").length;
+      const resolved = issuesList.filter(i => i?.status === "Resolved" || i?.status === "Closed").length;
       const pending = total - resolved;
       const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
 
@@ -202,15 +213,15 @@ export default function App() {
         "Broken streetlights": 0,
         "Drainage blockage": 0
       };
-      issuesList.forEach(i => {
-        if (i.category) {
-          categories[i.category] = (categories[i.category] || 0) + 1;
+      issuesList.filter(Boolean).forEach(i => {
+        if (i?.category) {
+          categories[i?.category || ""] = (categories[i?.category || ""] || 0) + 1;
         }
       });
 
       // District density count
       const districtDensity: { [key: string]: number } = {};
-      issuesList.forEach(i => {
+      issuesList.filter(Boolean).forEach(i => {
         const lat = i.latitude;
         const lng = i.longitude;
         let sector = "Midtown Central";
@@ -224,7 +235,7 @@ export default function App() {
 
       // Engagement score: sum of upvotes + comments
       let engagement = 0;
-      issuesList.forEach(i => {
+      issuesList.filter(Boolean).forEach(i => {
         engagement += (i.upvotes || 0) + (i.comments?.length || 0) * 2;
       });
       const communityEngagementScore = total > 0 ? Math.round(engagement / total * 10) : 0;
@@ -257,9 +268,9 @@ export default function App() {
       const path = window.location.pathname;
       // If landing page or login, route cleanly to authorized home dashboard
       if (path === "/" || path === "/login" || path === "") {
-        if (user.role === "admin") {
+        if (user?.role === "admin") {
           navigate("/admin");
-        } else if (user.role === "authority") {
+        } else if (user?.role === "authority") {
           navigate("/authority");
         } else {
           navigate("/citizen");
@@ -273,7 +284,7 @@ export default function App() {
     try {
       setVotingId(id);
       const docRef = doc(db, "complaints", id);
-      const currentIssue = issues.find(i => i.id === id);
+      const currentIssue = issues.find(i => i?.id === id);
       if (!currentIssue) return;
 
       const incrementValue = currentIssue.upvotedByUser ? -1 : 1;
@@ -289,7 +300,7 @@ export default function App() {
   };
 
   const handleExportPDF = () => {
-    const selectedIssue = issues.find(i => i.id === selectedIssueId);
+    const selectedIssue = issues.find(i => i?.id === selectedIssueId);
     if (!selectedIssue) return;
     const doc = new jsPDF();
     doc.setFont("helvetica", "bold");
@@ -308,7 +319,7 @@ export default function App() {
     const splitDesc = doc.splitTextToSize(`Description: ${selectedIssue.description}`, 170);
     doc.text(splitDesc, 20, 100);
     
-    doc.save(`Issue_Report_${selectedIssue.id}.pdf`);
+    doc.save(`Issue_Report_${(selectedIssue?.id || "")}.pdf`);
   };
 
   const handleShare = () => {
@@ -316,7 +327,7 @@ export default function App() {
   };
 
   const handleTestAIFeatures = async () => {
-    const selectedIssue = issues.find(i => i.id === selectedIssueId);
+    const selectedIssue = issues.find(i => i?.id === selectedIssueId);
     if (!selectedIssue) return;
     setIsAnalyzing(true);
     setAiAnalysisResult(null);
@@ -344,7 +355,7 @@ export default function App() {
   const handleUpdateStatus = async (id: string, status: Issue["status"], team?: string) => {
     try {
       const docRef = doc(db, "complaints", id);
-      const currentIssue = issues.find(i => i.id === id);
+      const currentIssue = issues.find(i => i?.id === id);
       if (!currentIssue) return;
 
       // Construct dynamic timeline update
@@ -386,20 +397,18 @@ export default function App() {
 
   // Handler: Direct app state updates from ticket submissions
   const handleIssueReported = (newIssue: Issue) => {
-    setIssues(prev => [...prev, newIssue]);
-    setSelectedIssueId(newIssue.id);
-    fetchAllData();
+    // onSnapshot will automatically update issues. Just navigate.
     navigate("/citizen");
   };
 
-  const selectedIssue = issues.find(i => i.id === selectedIssueId);
+  const selectedIssue = issues.find(i => i?.id === selectedIssueId);
 
   // Authentication & Security Guard Checks
   const isAuthorized = (): boolean => {
     if (!user) return false;
-    if (currentPath === "/admin" && user.role !== "admin") return false;
-    if (currentPath === "/authority" && user.role !== "authority" && user.role !== "admin") return false;
-    if (currentPath === "/report-issue" && user.role !== "citizen") return false;
+    if (currentPath === "/admin" && user?.role !== "admin") return false;
+    if (currentPath === "/authority" && user?.role !== "authority" && user?.role !== "admin") return false;
+    if (currentPath === "/report-issue" && user?.role !== "citizen") return false;
     return true;
   };
 
@@ -412,9 +421,9 @@ export default function App() {
 
   const goHome = () => {
     if (!user) return;
-    if (user.role === "admin") {
+    if (user?.role === "admin") {
       navigate("/admin");
-    } else if (user.role === "authority") {
+    } else if (user?.role === "authority") {
       navigate("/authority");
     } else {
       navigate("/citizen");
@@ -457,16 +466,16 @@ export default function App() {
                 <span className="text-[9px] bg-indigo-500/15 border border-indigo-400/30 text-indigo-300 font-bold px-1.5 py-0.5 rounded uppercase tracking-wider font-mono">RBAC SECURITY</span>
                 {user && (
                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wider font-mono border ${
-                    user.role === 'admin' ? 'bg-red-550/20 text-red-300 border-red-500/30' :
-                    user.role === 'authority' ? 'bg-emerald-550/15 text-emerald-300 border-emerald-500/20' :
+                    user?.role === 'admin' ? 'bg-red-550/20 text-red-300 border-red-500/30' :
+                    user?.role === 'authority' ? 'bg-emerald-550/15 text-emerald-300 border-emerald-500/20' :
                     'bg-indigo-550/15 text-indigo-300 border-indigo-500/20'
                   }`}>
-                    {user.role}
+                    {user?.role ?? 'User'}
                   </span>
                 )}
               </div>
               {user && (
-                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{user.email}</div>
+                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{user?.email ?? 'No Email'}</div>
               )}
             </div>
           </div>
@@ -510,7 +519,7 @@ export default function App() {
             >
               <AccessDenied 
                 onGoHome={goHome} 
-                currentRole={user.role} 
+                currentRole={user?.role ?? 'User'} 
                 requiredRole={getRequiredRoleForPath()} 
               />
             </motion.div>
@@ -527,6 +536,9 @@ export default function App() {
               <aside className="lg:col-span-3 bg-slate-900/50 border border-white/10 rounded-3xl p-5 shadow-xl space-y-5">
                 
                 {/* Profile Widget */}
+                {!user?.id ? (
+                  <div className="flex items-center justify-center bg-slate-950/40 p-3 rounded-2xl border border-white/5 text-slate-400 text-xs text-center">Unable to load profile.</div>
+                ) : (
                 <div className="flex items-center space-x-3 bg-slate-950/40 p-3 rounded-2xl border border-white/5">
                   <div className="h-9 w-9 rounded-full bg-indigo-500/15 border border-indigo-500/35 flex items-center justify-center font-bold text-indigo-400 font-display text-sm flex-shrink-0">
                     {currentUsername.charAt(0)}
@@ -535,21 +547,22 @@ export default function App() {
                     <div className="flex items-center space-x-2">
                       <span className="font-bold text-white text-xs truncate block max-w-[110px]">{currentUsername}</span>
                       <span className={`px-1.5 py-0.2 rounded-[4px] text-[8px] uppercase font-mono tracking-widest font-bold ${
-                        user.role === 'admin' ? 'bg-rose-500/20 text-rose-300' :
-                        user.role === 'authority' ? 'bg-emerald-500/15 text-emerald-300' :
+                        user?.role === 'admin' ? 'bg-rose-500/20 text-rose-300' :
+                        user?.role === 'authority' ? 'bg-emerald-500/15 text-emerald-300' :
                         'bg-indigo-500/15 text-indigo-300'
                       }`}>
-                        {user.role}
+                        {user?.role ?? 'User'}
                       </span>
                     </div>
-                    <div className="text-[10px] text-slate-450 mt-0.5 font-mono truncate">{user.badge || "Civic Novice"}</div>
+                    <div className="text-[10px] text-slate-450 mt-0.5 font-mono truncate">{user?.badge || 'Civic Novice'}</div>
                   </div>
                 </div>
 
+                )}
                 {/* Score badge widget */}
                 <div className="bg-gradient-to-tr from-indigo-950/40 to-blue-950/40 p-3 border border-indigo-500/10 rounded-2xl flex items-center justify-between text-xs">
                   <span className="text-slate-400 font-medium">Hero Wallet Balance</span>
-                  <span className="font-mono text-indigo-350 font-bold">{user.points || 0} pts</span>
+                  <span className="font-mono text-indigo-350 font-bold">{user?.points || 0} pts</span>
                 </div>
 
                 {/* Navigation Menu */}
@@ -570,7 +583,7 @@ export default function App() {
                   </button>
 
                   {/* Report Issue link (Citizen only) */}
-                  {user.role === "citizen" && (
+                  {user?.role === "citizen" && (
                     <button
                       onClick={() => navigate("/report-issue")}
                       className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center space-x-2.5 transition cursor-pointer ${
@@ -585,7 +598,7 @@ export default function App() {
                   )}
 
                   {/* Authority dispatch link (Authority and Admin) */}
-                  {(user.role === "authority" || user.role === "admin") && (
+                  {(user?.role === "authority" || user?.role === "admin") && (
                     <button
                       onClick={() => navigate("/authority")}
                       className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center space-x-2.5 transition cursor-pointer ${
@@ -609,11 +622,11 @@ export default function App() {
                     }`}
                   >
                     <ShieldCheck size={14} className={currentPath === "/resolved" ? "text-emerald-400" : ""} />
-                    <span>{user.role === "citizen" ? "✅ My Resolved Complaints" : "✅ Resolved Complaints"}</span>
+                    <span>{user?.role === "citizen" ? "✅ My Resolved Complaints" : "✅ Resolved Complaints"}</span>
                   </button>
 
                   {/* Admin root portal link (Admin only) */}
-                  {user.role === "admin" && (
+                  {user?.role === "admin" && (
                     <button
                       onClick={() => navigate("/admin")}
                       className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-semibold flex items-center space-x-2.5 transition cursor-pointer ${
@@ -670,20 +683,29 @@ export default function App() {
                         </div>
 
                         <span className="text-[10px] font-mono text-slate-450 hidden sm:inline-block">
-                          Active Tickets: {issues.filter(i => i.status !== "Resolved").length} open
+                          Active Tickets: {issues.filter(i => i?.status !== "Resolved").length} open
                         </span>
                       </div>
 
                       {/* Render dashboard segments */}
+                      {console.log("[DEBUG] Citizen Dashboard rendered.")}
                       {dashboardTab === "map" && (
                         <div className="grid grid-cols-1 md:grid-cols-1 gap-5">
-                          <InteractiveMap
-                            issues={issues.filter(i => i.status !== "Closed")}
+                          {issues.filter(i => i?.status !== "Closed" && i?.status !== "Resolved" && i?.status !== "Archived").length === 0 ? (
+                            <div className="bg-slate-900/60 p-8 rounded-3xl border border-white/10 text-center text-slate-400 flex flex-col items-center justify-center h-[500px]">
+                               <p className="font-bold text-lg">No complaints found.</p>
+                            </div>
+                          ) : (
+                            <ErrorBoundary fallback={<div className="w-full h-[500px] bg-slate-900 rounded-2xl flex items-center justify-center text-slate-400 font-bold border border-white/10">Map could not be loaded.</div>}>
+                            <InteractiveMap
+                            issues={issues.filter(i => i?.status !== "Closed" && i?.status !== "Resolved" && i?.status !== "Archived")}
                             selectedIssueId={selectedIssueId}
                             onSelectIssueId={(id: string) => setSelectedIssueId(id)}
                             onMapClick={handleMapClick}
                             clickedCoords={clickedCoords}
                           />
+                          </ErrorBoundary>
+                          )}
 
                           {/* Record inspector details card */}
                           {selectedIssue && (
@@ -706,11 +728,11 @@ export default function App() {
                                     {selectedIssue.status}
                                   </span>
                                   <button
-                                    onClick={() => handleVote(selectedIssue.id)}
-                                    disabled={votingId === selectedIssue.id}
+                                    onClick={() => handleVote(selectedIssue?.id ?? '')}
+                                    disabled={votingId === selectedIssue?.id}
                                     className={`px-3 py-1 rounded text-[11px] font-bold border transition ${selectedIssue.upvotedByUser ? 'bg-gradient-to-tr from-pink-500 to-rose-600 border-transparent text-white shadow-md' : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-200'} cursor-pointer disabled:opacity-50 flex items-center space-x-1`}
                                   >
-                                    {votingId === selectedIssue.id ? (
+                                    {votingId === selectedIssue?.id ? (
                                       <RefreshCw size={11} className="animate-spin mr-1" />
                                     ) : null}
                                     <span>{selectedIssue.upvotedByUser ? '♥ Upvoted' : '👍 Upvote'} ({selectedIssue.upvotes})</span>
@@ -813,8 +835,8 @@ export default function App() {
                                       {selectedIssue.comments.length === 0 ? (
                                         <p className="text-slate-500 italic py-3 text-center">No comments yet. Be the first to verify or support this ticket!</p>
                                       ) : (
-                                        selectedIssue.comments.map(c => (
-                                          <div key={c.id} className="p-3 bg-slate-950/40 rounded-2xl border border-white/5">
+                                        selectedIssue?.comments?.map(c => !c ? null : (
+                                          <div key={c?.id} className="p-3 bg-slate-950/40 rounded-2xl border border-white/5">
                                             <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
                                               <span className="font-bold text-slate-300">{c.author}</span>
                                               <span>{new Date(c.createdAt).toLocaleDateString()}</span>
@@ -838,7 +860,8 @@ export default function App() {
                                             createdAt: new Date().toISOString()
                                           };
                                           
-                                          const docRef = doc(db, "complaints", selectedIssue.id);
+                                          if (!selectedIssue) return;
+                                          const docRef = doc(db, "complaints", (selectedIssue?.id || ""));
                                           updateDoc(docRef, {
                                             comments: arrayUnion(newComment)
                                           }).then(() => {

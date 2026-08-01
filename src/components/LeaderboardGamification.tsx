@@ -75,7 +75,7 @@ export default function LeaderboardGamification({
           <div className="mt-5 pt-4 border-t border-white/10">
             <span className="text-[10px] block font-semibold text-slate-400 uppercase tracking-wider mb-2.5">My Badge Inventory</span>
             <div className="grid grid-cols-2 gap-2">
-              {badgePool.map(badge => {
+              {badgePool.map(badge => { if (!badge) return null;
                 const isEarned = pointsTotal >= (badge.name === "City Architect" ? 1200 : badge.name === "Pothole Patrol" ? 800 : badge.name === "Green Guardian" ? 400 : 100);
                 const BadgeIcon = badge.icon;
                 return (
@@ -98,12 +98,12 @@ export default function LeaderboardGamification({
           <span className="text-[10px] block font-semibold text-slate-400 uppercase tracking-wider mb-3">City Leaderboard Grid</span>
           
           <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 text-xs scrollbar-none">
-            {entries.map((entry, index) => {
+            {entries.map((entry, index) => { if (!entry) return null;
               const rank = index + 1;
               const isMe = entry.name.toLowerCase() === currentUsername.toLowerCase();
               return (
                 <div
-                  key={entry.id}
+                  key={entry?.id}
                   className={`p-2.5 rounded-xl border flex items-center justify-between transition-colors ${isMe ? 'bg-indigo-600/10 border-indigo-400/40 text-white shadow-inner' : 'bg-slate-950/25 border-white/5 text-slate-300 hover:bg-white/5'}`}
                 >
                   <div className="flex items-center space-x-2.5 truncate">

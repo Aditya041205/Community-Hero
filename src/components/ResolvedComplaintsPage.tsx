@@ -64,9 +64,9 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
 
       // Role-based filtering
       if (user.role === "citizen") {
-        issues = issues.filter(i => i.reporterEmail === user.email || i.reporterName === user.name);
+        issues = issues.filter(i => i?.reporterEmail === user.email || i?.reporterName === user.name);
       } else if (user.role === "authority") {
-        issues = issues.filter(i => i.assignedAuthorityEmail === user.email || i.assignedTeam === user.email);
+        issues = issues.filter(i => i?.assignedAuthorityEmail === user.email || i?.assignedTeam === user.email);
       }
       // Admin sees everything.
 
@@ -88,11 +88,11 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
     // Search
     const searchLower = searchQuery.toLowerCase();
     const matchSearch = 
-      issue.id.toLowerCase().includes(searchLower) ||
+      issue?.id.toLowerCase().includes(searchLower) ||
       issue.title.toLowerCase().includes(searchLower) ||
       issue.reporterName.toLowerCase().includes(searchLower) ||
       (issue.reporterEmail || "").toLowerCase().includes(searchLower) ||
-      issue.category.toLowerCase().includes(searchLower) ||
+      issue?.category.toLowerCase().includes(searchLower) ||
       (issue.address || "").toLowerCase().includes(searchLower);
 
     if (!matchSearch) return false;
@@ -139,11 +139,11 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
   const authorityCount: Record<string, number> = {};
   const categoryCount: Record<string, number> = {};
   filteredIssues.forEach(i => {
-    if (i.assignedTeam) {
-      authorityCount[i.assignedTeam] = (authorityCount[i.assignedTeam] || 0) + 1;
+    if (i?.assignedTeam) {
+      authorityCount[i?.assignedTeam] = (authorityCount[i?.assignedTeam] || 0) + 1;
     }
-    if (i.category) {
-      categoryCount[i.category] = (categoryCount[i.category] || 0) + 1;
+    if (i?.category) {
+      categoryCount[i?.category] = (categoryCount[i?.category] || 0) + 1;
     }
   });
 
@@ -153,14 +153,14 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
   // Export handlers
   const handleExportCSV = () => {
     const headers = ["ID", "Title", "Category", "Status", "Reporter Name", "Reporter Email", "Assigned Authority", "Created At", "Resolved At"];
-    const rows = filteredIssues.map(i => [
-      i.id,
+    const rows = filteredIssues.filter(i => !!i).map(i => [
+      i?.id,
       i.title.replace(/,/g, " "),
-      i.category,
-      i.status,
-      i.reporterName.replace(/,/g, " "),
-      i.reporterEmail || "",
-      i.assignedTeam?.replace(/,/g, " ") || "",
+      i?.category,
+      i?.status,
+      i?.reporterName.replace(/,/g, " "),
+      i?.reporterEmail || "",
+      i?.assignedTeam?.replace(/,/g, " ") || "",
       new Date(i.createdAt).toLocaleString(),
       i.resolvedAt ? new Date(i.resolvedAt).toLocaleString() : ""
     ]);
@@ -194,9 +194,9 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
         y = 20;
       }
       doc.setFont("helvetica", "bold");
-      doc.text(`${index + 1}. [${issue.id}] ${issue.title}`, 20, y);
+      doc.text(`${index + 1}. [${issue?.id}] ${issue.title}`, 20, y);
       doc.setFont("helvetica", "normal");
-      doc.text(`Category: ${issue.category} | Authority: ${issue.assignedTeam || "N/A"}`, 25, y + 6);
+      doc.text(`Category: ${issue?.category} | Authority: ${issue.assignedTeam || "N/A"}`, 25, y + 6);
       doc.text(`Resolved: ${issue.resolvedAt ? new Date(issue.resolvedAt).toLocaleDateString() : "Unknown"}`, 25, y + 12);
       y += 20;
     });
@@ -301,9 +301,9 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredIssues.map(issue => (
+          {filteredIssues.map(issue => !issue ? null : (
             <motion.div 
-              key={issue.id}
+              key={issue?.id}
               layout
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -317,13 +317,13 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
                       <div>
                         <div className="flex items-center gap-2 mb-1.5">
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                            {issue.status}
+                            {issue?.status}
                           </span>
                           <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-white/5 text-slate-300 border border-white/10">
-                            {issue.category}
+                            {issue?.category}
                           </span>
                           <span className="px-2 py-0.5 rounded text-[10px] font-mono text-slate-500">
-                            ID: {issue.id}
+                            ID: {issue?.id}
                           </span>
                         </div>
                         <h3 className="text-lg font-bold text-white font-display leading-tight">{issue.title}</h3>

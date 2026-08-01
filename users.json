@@ -8,5 +8,25 @@
     "badge": "Civic Novice",
     "reputation": 100,
     "joinedAt": "2026-07-29T05:41:27.639Z"
+  },
+  {
+    "id": "S1wkMxEsW6fdJbldMmCwoTJLXH93",
+    "email": "adityasharma01021@gmail.com",
+    "name": "Aditya Sharma",
+    "role": "admin",
+    "points": 100,
+    "badge": "City Admin",
+    "reputation": 100,
+    "joinedAt": "2026-07-30T05:55:28.776Z"
+  },
+  {
+    "id": "JWMBeCvNelaYT0NdY03bT1Hpzu93",
+    "email": "adityaksharma00412@gmail.com",
+    "name": "aditya sharma",
+    "role": "citizen",
+    "points": 100,
+    "badge": "Civic Novice",
+    "reputation": 100,
+    "joinedAt": "2026-07-30T05:58:07.251Z"
   }
 ]

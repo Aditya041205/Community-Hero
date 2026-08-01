@@ -12,6 +12,7 @@ import {
   onAuthStateChanged
 } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // Firebase configuration from firebase-applet-config.json
 const firebaseConfig = {
@@ -27,6 +28,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app, "ai-studio-adec457a-8583-4ada-84c2-6aaf4e3a1b70");
+const storage = getStorage(app);
 const googleProvider = new GoogleAuthProvider();
 
 // Configure provider to prompt for account selection
@@ -37,6 +39,7 @@ googleProvider.setCustomParameters({
 export {
   auth,
   db,
+  storage,
   googleProvider,
   signInWithPopup,
   signInWithRedirect,
