@@ -136,6 +136,10 @@ export default function App() {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const mappedIssues: Issue[] = querySnapshot.docs.map(docSnap => {
         const data = docSnap.data();
+        const complaintImage = data.imageUrl || data.imageURL || data.photoUrl || data.photo || data.image || data.evidenceImageUrl || data.evidenceImage || data.fileUrl || data.attachment || "";
+        console.log("Complaint:", data);
+        console.log("Image URL:", complaintImage);
+        
         return {
           id: data.complaintId || (docSnap?.id || ""),
           title: data.title || "",
@@ -170,7 +174,7 @@ export default function App() {
           duplicateOfId: data.duplicateOfId || null,
           duplicateReason: data.duplicateReason || undefined,
           recommendation: data.recommendation || undefined,
-          image: data.imageUrl || "",
+          imageUrl: complaintImage,
           isMock: false,
           createdAt: data.createdAt || new Date().toISOString(),
           assignedAuthorityEmail: data.assignedAuthority || "",
@@ -822,6 +826,14 @@ export default function App() {
                                   >
                                     <p className="text-xs text-slate-300 leading-relaxed">{selectedIssue.description}</p>
                                     
+                                    {selectedIssue.imageUrl ? (
+                                       <img src={selectedIssue.imageUrl} alt="Complaint" className="w-full h-48 object-cover rounded-lg mt-1" loading="lazy" referrerPolicy="no-referrer" />
+                                     ) : (
+                                       <div className="w-full h-48 flex items-center justify-center rounded-lg border border-white/10 mt-1 bg-slate-900/50 text-slate-500 font-medium text-xs">
+                                         No Evidence Photo
+                                       </div>
+                                     )}
+                                    
                                     {selectedIssue.resolutionNotes && (
                                       <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 text-[11px] leading-relaxed mt-2">
                                         <span className="font-bold text-emerald-400 uppercase tracking-widest font-mono text-[9px] block mb-1">Official Resolution Certification</span>
@@ -968,8 +980,12 @@ export default function App() {
                                        </div>
                                      </div>
 
-                                     {issue.image && (
-                                       <img src={issue.image} alt={issue.title} className="w-full h-24 object-cover rounded-lg border border-white/10 mt-1" referrerPolicy="no-referrer" />
+                                     {issue.imageUrl ? (
+                                       <img src={issue.imageUrl} alt="Complaint" className="w-full h-48 object-cover rounded-lg mt-1" loading="lazy" referrerPolicy="no-referrer" />
+                                     ) : (
+                                       <div className="w-full h-48 flex items-center justify-center rounded-lg border border-white/10 mt-1 bg-slate-900/50 text-slate-500 font-medium text-xs">
+                                         No Evidence Photo
+                                       </div>
                                      )}
                                   </div>
                                ))}

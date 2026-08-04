@@ -50,7 +50,7 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
           timeline: data.timeline || [],
           duplicateChecked: data.duplicateChecked !== undefined ? data.duplicateChecked : true,
           duplicateOfId: data.duplicateOfId || null,
-          image: data.imageUrl || "",
+          imageUrl: data.imageUrl || "",
           isMock: false,
           createdAt: data.createdAt || new Date().toISOString(),
           assignedAuthorityEmail: data.assignedAuthority || data.assignedTeam || "",
@@ -374,9 +374,9 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
                   {/* Right Column: Images & Actions */}
                   <div className="lg:w-64 flex flex-col space-y-3 shrink-0">
                     {/* Before Image */}
-                    {issue.image && (
+                    {issue.imageUrl && (
                       <div className="relative group rounded-xl overflow-hidden bg-slate-950 border border-white/10 aspect-video">
-                        <img src={issue.image} alt="Before" className="w-full h-full object-cover" />
+                        <img src={issue.imageUrl} alt="Before" className="w-full h-full object-cover" />
                         <div className="absolute top-2 left-2 bg-black/60 backdrop-blur text-white text-[10px] font-bold px-2 py-0.5 rounded">BEFORE</div>
                       </div>
                     )}
@@ -389,7 +389,7 @@ export default function ResolvedComplaintsPage({ onViewOnMap }: ResolvedComplain
                       </div>
                     )}
 
-                    {!issue.image && !issue.resolutionProofImage && (
+                    {!issue.imageUrl && !issue.resolutionProofImage && (
                       <div className="flex-1 flex items-center justify-center bg-slate-950 border border-white/5 rounded-xl aspect-video text-slate-600 text-xs font-mono">
                         No Evidence Photos
                       </div>

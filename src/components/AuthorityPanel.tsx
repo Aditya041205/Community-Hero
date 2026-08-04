@@ -345,11 +345,11 @@ export default function AuthorityPanel({
                     <p className="text-slate-300 leading-relaxed mt-1">{selectedIssue.description}</p>
                   </div>
 
-                  {selectedIssue.image && (
+                  {selectedIssue.imageUrl && (
                     <div className="pt-2">
                       <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold font-mono block mb-1">Citizen Photo Evidence</span>
                       <img 
-                        src={selectedIssue.image} 
+                        src={selectedIssue.imageUrl} 
                         alt="Evidence" 
                         referrerPolicy="no-referrer"
                         className="w-full max-h-[160px] object-cover rounded-xl border border-white/10 shadow-md"

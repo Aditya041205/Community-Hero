@@ -6,7 +6,7 @@ import { useAuth } from "./AuthContext";
 import InteractiveMap from "./InteractiveMap";
 import { db, storage } from "../lib/firebase";
 import { collection, addDoc, updateDoc } from "firebase/firestore";
-import { ref, uploadString, getDownloadURL } from "firebase/storage";
+import { ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
 
 
 const TEST_PHOTO_PRESETS = [
@@ -92,6 +92,7 @@ export default function ReportForm({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
+      console.log("File selected for upload:", e.target.files[0].name);
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target && typeof event.target.result === "string") {
@@ -122,12 +123,45 @@ export default function ReportForm({
     }
 
     try {
+      console.time("Complaint Submit");
+
+      let uploadedUrl: string | null = null;
+      if (image) {
+        console.time("Image Upload");
+        console.log("Uploading image...");
+        try {
+          const imageId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+          const imageRef = ref(storage, `complaints/${imageId}`);
+          
+          // Convert data URL to Blob for uploadBytes
+          const response = await fetch(image);
+          const blob = await response.blob();
+          
+          await uploadBytes(imageRef, blob);
+          console.log("Upload complete");
+          uploadedUrl = await getDownloadURL(imageRef);
+          console.log("Download URL:", uploadedUrl);
+          console.timeEnd("Image Upload");
+        } catch (err: any) {
+          console.error("Image upload failed", err);
+          setErrorStatus(err.message || "Failed to upload image.");
+          setSubmitting(false);
+          console.timeEnd("Image Upload");
+          console.timeEnd("Complaint Submit");
+          return;
+        }
+      }
+
+      console.time("Firestore Save");
+      console.log("Saving complaint...");
+      
       // 1. Save complaint to Firestore immediately with status "Pending AI"
       const docRef = await addDoc(collection(db, "complaints"), {
         title: title || `Issue related to ${category}`,
         description: description || `Automatically reported ${category} via system.`,
         category: category || "Unknown",
         severity: "Medium",
+        priority: "Normal",
         status: "Pending AI",
         createdAt: new Date().toISOString(),
         createdBy: currentUsername,
@@ -140,8 +174,8 @@ export default function ReportForm({
         city: "",
         state: "",
         country: "",
-        imageUrl: null,
-        image: null,
+        imageUrl: uploadedUrl,
+        image: uploadedUrl,
         upvotes: 0,
         verified: false,
         isMock: false,
@@ -149,23 +183,12 @@ export default function ReportForm({
         duplicateOfId: null,
         duplicateReason: "",
       });
+      console.log("Complaint saved successfully", docRef.id);
+      console.timeEnd("Firestore Save");
 
       // 2. Run independent tasks in parallel
       (async () => {
         try {
-          // A. Image Upload
-          const uploadPromise = async () => {
-            if (!image) return null;
-            try {
-              const imageRef = ref(storage, `complaints/${docRef.id}_${Date.now()}`);
-              await uploadString(imageRef, image, "data_url");
-              return await getDownloadURL(imageRef);
-            } catch (err) {
-              console.error("Image upload failed", err);
-              return null;
-            }
-          };
-
           // B. Reverse Geocoding with 5s timeout
           const geocodePromise = async () => {
             try {
@@ -190,6 +213,7 @@ export default function ReportForm({
 
           // C. AI Analysis with 15s timeout
           const aiPromise = async () => {
+            console.time("AI Analysis");
             const payload = {
               title: title || `Issue related to ${category}`,
               description: description || `Automatically reported ${category} via system.`,
@@ -214,11 +238,13 @@ export default function ReportForm({
               clearTimeout(timeoutId);
               if (res.ok) {
                 const responseData = await res.json();
+                console.timeEnd("AI Analysis");
                 return responseData.issue;
               }
             } catch (err) {
               console.warn("AI Analysis timeout or failed", err);
             }
+            console.timeEnd("AI Analysis");
             return {
               title: title || `Issue related to ${category}`,
               description: description || `Automatically reported ${category} via system.`,
@@ -230,8 +256,7 @@ export default function ReportForm({
             };
           };
 
-          const [uploadedUrl, geoData, aiData] = await Promise.all([
-            uploadPromise(),
+          const [geoData, aiData] = await Promise.all([
             geocodePromise(),
             aiPromise()
           ]);
@@ -250,9 +275,7 @@ export default function ReportForm({
             city: geoData.city,
             state: geoData.state,
             country: geoData.country,
-            location: { lat: latitude, lng: longitude, address: geoData.address },
-            imageUrl: uploadedUrl || null,
-            image: uploadedUrl || null,
+            location: { lat: latitude, lng: longitude, address: geoData.address }
           });
         } catch (err) {
           console.error("Background tasks failed", err);
@@ -274,7 +297,7 @@ export default function ReportForm({
       
       setTimeout(() => {
         onIssueReported({ id: docRef.id, title, category, status: "Pending AI" } as any);
-      }, 2000);
+      }, 500);
 
     } catch (error: any) {
       setErrorStatus(error.message || "Failed to submit report");

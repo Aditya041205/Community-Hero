@@ -41,7 +41,7 @@ export interface Issue {
   duplicateOfId?: string | null;
   duplicateChecked: boolean;
   duplicateReason?: string;
-  image?: string; // base64
+  imageUrl?: string;
   isMock: boolean;
   recommendation?: string;
   createdAt: string;
