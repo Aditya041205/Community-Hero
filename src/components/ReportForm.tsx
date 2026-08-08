@@ -4,9 +4,8 @@ import { motion } from "motion/react";
 import { Issue } from "../types";
 import { useAuth } from "./AuthContext";
 import InteractiveMap from "./InteractiveMap";
-import { db, storage } from "../lib/firebase";
-import { collection, addDoc, updateDoc } from "firebase/firestore";
-import { ref, uploadString, getDownloadURL, uploadBytes } from "firebase/storage";
+import { db } from "../lib/firebase";
+import { collection, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 
 
 const TEST_PHOTO_PRESETS = [
@@ -23,6 +22,27 @@ const TEST_PHOTO_PRESETS = [
     data: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mN88B9RAgAEfQIA3v8L7AAAAABJRU5ErkJggg=="
   }
 ];
+
+
+const uploadImageToCloudinary = async (fileDataUri: string): Promise<string> => {
+  const cloudName = "dkd5jyxby"; // Replace with your cloudName
+  const uploadPreset = "ml_default"; // Replace with your uploadPreset
+  const formData = new FormData();
+  formData.append("file", fileDataUri);
+  formData.append("upload_preset", uploadPreset);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to upload image to Cloudinary");
+  }
+
+  const data = await res.json();
+  return data.secure_url;
+};
 
 interface ReportFormProps {
   onIssueReported: (newIssue: Issue) => void;
@@ -72,7 +92,7 @@ export default function ReportForm({
         setCountry(data.address?.country || "");
       }
     } catch (err) {
-      console.warn("Reverse geocoding failed");
+      console.error("Reverse geocoding failed", err);
     }
   };
 
@@ -110,6 +130,7 @@ export default function ReportForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Form Submitted");
     setSubmitting(true);
     setErrorStatus(null);
     setReportResult(null);
@@ -122,48 +143,52 @@ export default function ReportForm({
       return;
     }
 
+    const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, name: string): Promise<T> => {
+      let timeoutHandle: any;
+      const timeoutPromise = new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(`${name} timeout`)), timeoutMs);
+      });
+      return Promise.race([
+        promise.finally(() => clearTimeout(timeoutHandle)),
+        timeoutPromise
+      ]);
+    };
+
     try {
       console.time("Complaint Submit");
 
-      let uploadedUrl: string | null = null;
+      let uploadedUrl: string = "";
       if (image) {
-        console.time("Image Upload");
-        console.log("Uploading image...");
+        console.time("upload image");
+        console.log("Uploading Image...");
         try {
-          const imageId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
-          const imageRef = ref(storage, `complaints/${imageId}`);
-          
-          // Convert data URL to Blob for uploadBytes
-          const response = await fetch(image);
-          const blob = await response.blob();
-          
-          await uploadBytes(imageRef, blob);
-          console.log("Upload complete");
-          uploadedUrl = await getDownloadURL(imageRef);
+          uploadedUrl = await withTimeout(uploadImageToCloudinary(image), 15000, "upload image to Cloudinary");
+          console.log("Image Uploaded");
           console.log("Download URL:", uploadedUrl);
-          console.timeEnd("Image Upload");
+          console.timeEnd("upload image");
+          if (!uploadedUrl) {
+            throw new Error("Download URL returned from Cloudinary is null");
+          }
         } catch (err: any) {
           console.error("Image upload failed", err);
           setErrorStatus(err.message || "Failed to upload image.");
           setSubmitting(false);
-          console.timeEnd("Image Upload");
-          console.timeEnd("Complaint Submit");
+          try { console.timeEnd("upload image"); } catch (e) {}
           return;
         }
       }
 
-      console.time("Firestore Save");
-      console.log("Saving complaint...");
+      console.time("addDoc()");
+      console.log("Preparing Firestore Data");
       
-      // 1. Save complaint to Firestore immediately with status "Pending AI"
-      const docRef = await addDoc(collection(db, "complaints"), {
+      const firestoreData = {
         title: title || `Issue related to ${category}`,
         description: description || `Automatically reported ${category} via system.`,
         category: category || "Unknown",
         severity: "Medium",
         priority: "Normal",
         status: "Pending AI",
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
         createdBy: currentUsername,
         reportedBy: user?.uid || "anonymous",
         reporterName: currentUsername,
@@ -182,22 +207,37 @@ export default function ReportForm({
         recommendation: "",
         duplicateOfId: null,
         duplicateReason: "",
-      });
-      console.log("Complaint saved successfully", docRef.id);
-      console.timeEnd("Firestore Save");
+      };
+      
+      console.log("Saving Firestore...");
+      let docRef: any;
+      try {
+        docRef = await withTimeout(addDoc(collection(db, "complaints"), firestoreData), 3000, "addDoc");
+        console.log("Firestore Saved");
+        console.timeEnd("addDoc()");
+      } catch (err: any) {
+        console.error("addDoc error", err);
+        setErrorStatus(err.message || "Failed to save complaint to database.");
+        setSubmitting(false);
+        return;
+      }
 
-      // 2. Run independent tasks in parallel
+      // Background tasks
       (async () => {
         try {
-          // B. Reverse Geocoding with 5s timeout
           const geocodePromise = async () => {
+            console.time("reverse geocoding");
+            console.log("STEP 4 START: reverse geocoding");
             try {
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 5000);
-              const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`, { signal: controller.signal });
+              const fetchPromise = fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`, { signal: controller.signal });
+              const res = await withTimeout(fetchPromise, 5000, "reverse geocoder");
               clearTimeout(timeoutId);
               if (res.ok) {
                 const data = await res.json();
+                console.log("STEP 4 END: reverse geocoding");
+                console.timeEnd("reverse geocoding");
                 return {
                   address: data.display_name || "",
                   city: data.address?.city || data.address?.town || data.address?.village || "",
@@ -206,14 +246,16 @@ export default function ReportForm({
                 };
               }
             } catch (err) {
-              console.warn("Reverse geocoding timeout or failed", err);
+              console.error("Reverse geocoding error", err);
             }
+            console.log("STEP 4 END: reverse geocoding (failed)");
+            console.timeEnd("reverse geocoding");
             return { address: "", city: "", state: "", country: "" };
           };
 
-          // C. AI Analysis with 15s timeout
           const aiPromise = async () => {
-            console.time("AI Analysis");
+            console.time("AI analysis");
+            console.log("STEP 5 START: AI analysis");
             const payload = {
               title: title || `Issue related to ${category}`,
               description: description || `Automatically reported ${category} via system.`,
@@ -225,8 +267,8 @@ export default function ReportForm({
             };
             try {
               const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 15000);
-              const res = await fetch("/api/issues/report", {
+              const timeoutId = setTimeout(() => controller.abort(), 10000);
+              const fetchPromise = fetch("/api/issues/report", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
@@ -235,16 +277,19 @@ export default function ReportForm({
                 body: JSON.stringify(payload),
                 signal: controller.signal
               });
+              const res = await withTimeout(fetchPromise, 10000, "AI API");
               clearTimeout(timeoutId);
               if (res.ok) {
                 const responseData = await res.json();
-                console.timeEnd("AI Analysis");
+                console.log("STEP 5 END: AI analysis");
+                console.timeEnd("AI analysis");
                 return responseData.issue;
               }
             } catch (err) {
-              console.warn("AI Analysis timeout or failed", err);
+              console.error("AI Analysis error", err);
             }
-            console.timeEnd("AI Analysis");
+            console.log("STEP 5 END: AI analysis (failed)");
+            console.timeEnd("AI analysis");
             return {
               title: title || `Issue related to ${category}`,
               description: description || `Automatically reported ${category} via system.`,
@@ -261,28 +306,36 @@ export default function ReportForm({
             aiPromise()
           ]);
 
-          // Update Firestore
-          await updateDoc(docRef, {
-            title: aiData.title || title || `Issue related to ${category}`,
-            description: aiData.description || description || `Automatically reported ${category} via system.`,
-            category: aiData.category || "Unknown",
-            severity: aiData.urgency || "Medium",
-            recommendation: aiData.recommendation || "",
-            duplicateOfId: aiData.duplicateOfId || null,
-            duplicateReason: aiData.duplicateReason || "",
-            status: "Pending",
-            address: geoData.address,
-            city: geoData.city,
-            state: geoData.state,
-            country: geoData.country,
-            location: { lat: latitude, lng: longitude, address: geoData.address }
-          });
+          console.time("updateDoc()");
+          console.log("STEP 6 START: updateDoc");
+          try {
+            await withTimeout(updateDoc(docRef, {
+              title: aiData.title || title || `Issue related to ${category}`,
+              description: aiData.description || description || `Automatically reported ${category} via system.`,
+              category: aiData.category || "Unknown",
+              severity: aiData.urgency || "Medium",
+              recommendation: aiData.recommendation || "",
+              duplicateOfId: aiData.duplicateOfId || null,
+              duplicateReason: aiData.duplicateReason || "",
+              status: "Pending",
+              address: geoData.address,
+              city: geoData.city,
+              state: geoData.state,
+              country: geoData.country,
+              location: { lat: latitude, lng: longitude, address: geoData.address }
+            }), 10000, "updateDoc");
+            console.log("STEP 6 END: updateDoc");
+          } catch (err) {
+            console.error("updateDoc error", err);
+          }
+          console.timeEnd("updateDoc()");
         } catch (err) {
           console.error("Background tasks failed", err);
         }
       })();
 
-      // Show success, then wait, then redirect
+      console.time("navigate()");
+      console.log("Navigating...");
       setReportResult({ 
         title: title || "Issue Reported", 
         urgency: "Medium",
@@ -296,16 +349,19 @@ export default function ReportForm({
       setImage(null);
       
       setTimeout(() => {
+        
+        console.log("Done");
+        console.timeEnd("navigate()");
+        console.timeEnd("Complaint Submit");
         onIssueReported({ id: docRef.id, title, category, status: "Pending AI" } as any);
+        setSubmitting(false); // Reset submit state just in case
       }, 500);
-
     } catch (error: any) {
+      console.error("Submission error:", error);
       setErrorStatus(error.message || "Failed to submit report");
       setSubmitting(false);
     }
-    // We do NOT call setSubmitting(false) on success because we want the spinner/disabled state to remain while redirecting.
   };
-
   return (
     <div className="bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-5 shadow-2xl h-full relative overflow-hidden">
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>

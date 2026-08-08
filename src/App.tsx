@@ -137,7 +137,7 @@ export default function App() {
       const mappedIssues: Issue[] = querySnapshot.docs.map(docSnap => {
         const data = docSnap.data();
         const complaintImage = data.imageUrl || data.imageURL || data.photoUrl || data.photo || data.image || data.evidenceImageUrl || data.evidenceImage || data.fileUrl || data.attachment || "";
-        console.log("Complaint:", data);
+        console.log("Complaint loaded:", data);
         console.log("Image URL:", complaintImage);
         
         return {
