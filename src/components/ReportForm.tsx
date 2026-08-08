@@ -25,8 +25,8 @@ const TEST_PHOTO_PRESETS = [
 
 
 const uploadImageToCloudinary = async (fileDataUri: string): Promise<string> => {
-  const cloudName = "dkd5jyxby"; // Replace with your cloudName
-  const uploadPreset = "ml_default"; // Replace with your uploadPreset
+  const cloudName = "a1g8nbso";
+  const uploadPreset = "civic_action";
   const formData = new FormData();
   formData.append("file", fileDataUri);
   formData.append("upload_preset", uploadPreset);
@@ -36,11 +36,17 @@ const uploadImageToCloudinary = async (fileDataUri: string): Promise<string> => 
     body: formData,
   });
 
+  const data = await res.json();
+
   if (!res.ok) {
-    throw new Error("Failed to upload image to Cloudinary");
+    console.error("Cloudinary upload failed:", data);
+    let errorMessage = data?.error?.message || "Cloudinary upload failed";
+    if (errorMessage.includes("preset not found")) {
+      errorMessage = `Cloudinary Error: Upload preset '${uploadPreset}' not found. Please ensure you have created an unsigned upload preset named '${uploadPreset}' in your Cloudinary dashboard (Settings -> Upload -> Upload presets).`;
+    }
+    throw new Error(errorMessage);
   }
 
-  const data = await res.json();
   return data.secure_url;
 };
 
@@ -157,28 +163,28 @@ export default function ReportForm({
     try {
       console.time("Complaint Submit");
 
-      let uploadedUrl: string = "";
+      let imageUrl: string | null = null;
       if (image) {
-        console.time("upload image");
+        console.time("Cloudinary Upload");
         console.log("Uploading Image...");
         try {
-          uploadedUrl = await withTimeout(uploadImageToCloudinary(image), 15000, "upload image to Cloudinary");
+          imageUrl = await uploadImageToCloudinary(image);
           console.log("Image Uploaded");
-          console.log("Download URL:", uploadedUrl);
-          console.timeEnd("upload image");
-          if (!uploadedUrl) {
+          console.log("Download URL:", imageUrl);
+          console.timeEnd("Cloudinary Upload");
+          if (!imageUrl) {
             throw new Error("Download URL returned from Cloudinary is null");
           }
         } catch (err: any) {
           console.error("Image upload failed", err);
           setErrorStatus(err.message || "Failed to upload image.");
           setSubmitting(false);
-          try { console.timeEnd("upload image"); } catch (e) {}
+          try { console.timeEnd("Cloudinary Upload"); } catch (e) {}
           return;
         }
       }
 
-      console.time("addDoc()");
+      console.time("Firestore Complaint Save");
       console.log("Preparing Firestore Data");
       
       const firestoreData = {
@@ -199,8 +205,8 @@ export default function ReportForm({
         city: "",
         state: "",
         country: "",
-        imageUrl: uploadedUrl,
-        image: uploadedUrl,
+        imageUrl: imageUrl,
+        
         upvotes: 0,
         verified: false,
         isMock: false,
@@ -212,9 +218,9 @@ export default function ReportForm({
       console.log("Saving Firestore...");
       let docRef: any;
       try {
-        docRef = await withTimeout(addDoc(collection(db, "complaints"), firestoreData), 3000, "addDoc");
+        docRef = await addDoc(collection(db, "complaints"), firestoreData);
         console.log("Firestore Saved");
-        console.timeEnd("addDoc()");
+        console.timeEnd("Firestore Complaint Save");
       } catch (err: any) {
         console.error("addDoc error", err);
         setErrorStatus(err.message || "Failed to save complaint to database.");
@@ -348,14 +354,11 @@ export default function ReportForm({
       setDescription("");
       setImage(null);
       
-      setTimeout(() => {
-        
-        console.log("Done");
-        console.timeEnd("navigate()");
-        console.timeEnd("Complaint Submit");
-        onIssueReported({ id: docRef.id, title, category, status: "Pending AI" } as any);
-        setSubmitting(false); // Reset submit state just in case
-      }, 500);
+            console.log("Done");
+      console.timeEnd("navigate()");
+      console.timeEnd("Complaint Submit");
+      onIssueReported({ id: docRef.id, title, category, status: "Pending AI", imageUrl } as any);
+      setSubmitting(false);
     } catch (error: any) {
       console.error("Submission error:", error);
       setErrorStatus(error.message || "Failed to submit report");
