@@ -125,7 +125,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           let retries = 3;
           while (retries > 0) {
             try {
-              syncRes = await fetch("/api/auth/firebase-sync", {
+              syncRes = await fetch((import.meta.env.VITE_API_URL || "") + "/api/auth/firebase-sync", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json"

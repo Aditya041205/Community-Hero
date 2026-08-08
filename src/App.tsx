@@ -359,7 +359,7 @@ export default function App() {
     setAiAnalysisResult(null);
     try {
       const prompt = `Analyze this civic issue and provide a short summary, category verification, and urgency level.\nTitle: ${selectedIssue.title}\nDescription: ${selectedIssue.description}`;
-      const response = await fetch("/api/chat", {
+      const response = await fetch((import.meta.env.VITE_API_URL || "") + "/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: prompt })

@@ -25,29 +25,21 @@ const TEST_PHOTO_PRESETS = [
 
 
 const uploadImageToCloudinary = async (fileDataUri: string): Promise<string> => {
-  const cloudName = "a1g8nbso";
-  const uploadPreset = "civic_action";
-  const formData = new FormData();
-  formData.append("file", fileDataUri);
-  formData.append("upload_preset", uploadPreset);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+  const backendUrl = import.meta.env.VITE_API_URL || "";
+  const res = await fetch(`${backendUrl}/api/upload`, {
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image: fileDataUri }),
   });
 
   const data = await res.json();
 
   if (!res.ok) {
     console.error("Cloudinary upload failed:", data);
-    let errorMessage = data?.error?.message || "Cloudinary upload failed";
-    if (errorMessage.includes("preset not found")) {
-      errorMessage = `Cloudinary Error: Upload preset '${uploadPreset}' not found. Please ensure you have created an unsigned upload preset named '${uploadPreset}' in your Cloudinary dashboard (Settings -> Upload -> Upload presets).`;
-    }
-    throw new Error(errorMessage);
+    throw new Error(data?.error || "Image upload failed");
   }
 
-  return data.secure_url;
+  return data.imageUrl;
 };
 
 interface ReportFormProps {
@@ -274,7 +266,7 @@ export default function ReportForm({
             try {
               const controller = new AbortController();
               const timeoutId = setTimeout(() => controller.abort(), 10000);
-              const fetchPromise = fetch("/api/issues/report", {
+              const fetchPromise = fetch((import.meta.env.VITE_API_URL || "") + "/api/issues/report", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
