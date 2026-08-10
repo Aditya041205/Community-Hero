@@ -1436,8 +1436,8 @@ app.post("/api/upload", async (req, res) => {
       return res.status(400).json({ error: "No image provided" });
     }
 
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "a1g8nbso";
-    const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET || "civic_action";
+    const cloudName = "a1g8nbso";
+    const uploadPreset = "civic_action";
 
     const formData = new FormData();
     formData.append("file", image);

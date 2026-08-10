@@ -147,27 +147,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (!syncRes) throw new Error("Failed to fetch after retries");
 
 
+          const responseText = await syncRes.text();
+          let parsedData: any = {};
+          try {
+            parsedData = responseText ? JSON.parse(responseText) : {};
+          } catch (parseError) {
+            console.error("[AUTH-CLIENT] Failed to parse backend response as JSON:", responseText);
+          }
+
           if (syncRes.ok) {
-            const data = await syncRes.json();
-            
             // Persist Express JWT token locally
-            localStorage.setItem("ch_token", data.token);
+            if (parsedData.token) {
+              localStorage.setItem("ch_token", parsedData.token);
+            }
 
             setState({
-              user: data.user,
-              token: data.token,
+              user: parsedData.user || null,
+              token: parsedData.token || null,
               loading: false,
               error: null
             });
           } else {
-            const errorData = await syncRes.json();
-            console.error("[AUTH-CLIENT] Failed to sync user with backend:", errorData);
+            console.error("[AUTH-CLIENT] Failed to sync user with backend:", parsedData);
             
             setState({
               user: null,
               token: null,
               loading: false,
-              error: errorData.error || "Failed to synchronize profile with server."
+              error: parsedData.error || "Failed to synchronize profile with server."
             });
           }
         } catch (syncErr) {
